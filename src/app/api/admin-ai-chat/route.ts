@@ -104,7 +104,8 @@ const TOOLS = [{
 
 interface ToolCallArgs { [k: string]: unknown }
 
-async function execTool(name: string, args: ToolCallArgs, sb: ReturnType<typeof createClient>): Promise<unknown> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function execTool(name: string, args: ToolCallArgs, sb: any): Promise<unknown> {
   switch (name) {
     case "list_menu_items": {
       let q = sb.from("menu_items").select("id,name,description,price,category,available");
@@ -114,10 +115,14 @@ async function execTool(name: string, args: ToolCallArgs, sb: ReturnType<typeof 
       return { items: data, count: data?.length ?? 0 };
     }
     case "add_menu_item": {
-      const { data, error } = await sb.from("menu_items").insert({
+      const payload = {
         name: args.name, description: args.description ?? "", price: args.price,
         category: args.category, available: args.available ?? true, tags: [],
-      }).select("id,name").single();
+      };
+      const { data, error } = await sb.from("menu_items")
+        .insert(payload as never)
+        .select("id,name")
+        .single();
       if (error) return { error: error.message };
       return { ok: true, item: data };
     }
@@ -128,7 +133,7 @@ async function execTool(name: string, args: ToolCallArgs, sb: ReturnType<typeof 
       if (args.new_price !== undefined) patch.price = args.new_price;
       if (args.new_category !== undefined) patch.category = args.new_category;
       if (args.new_available !== undefined) patch.available = args.new_available;
-      let q = sb.from("menu_items").update(patch);
+      let q = sb.from("menu_items").update(patch as never);
       if (args.id) q = q.eq("id", args.id as string);
       else if (args.name) q = q.eq("name", args.name as string);
       else return { error: "Provide id or name" };
@@ -148,11 +153,11 @@ async function execTool(name: string, args: ToolCallArgs, sb: ReturnType<typeof 
     case "get_site_config": {
       if (args.key) {
         const { data } = await sb.from("site_config").select("value").eq("key", args.key as string).single();
-        return { key: args.key, value: data?.value };
+        return { key: args.key, value: (data as { value?: unknown } | null)?.value };
       }
       const { data } = await sb.from("site_config").select("key,value");
       const out: Record<string, unknown> = {};
-      for (const r of data ?? []) out[(r as { key: string }).key] = (r as { value: unknown }).value;
+      for (const r of (data ?? []) as Array<{ key: string; value: unknown }>) out[r.key] = r.value;
       return out;
     }
     case "update_site_config": {
@@ -162,7 +167,7 @@ async function execTool(name: string, args: ToolCallArgs, sb: ReturnType<typeof 
       }
       const { error } = await sb.from("site_config").upsert({
         key: args.key, value: parsed, updated_at: new Date().toISOString(),
-      });
+      } as never);
       if (error) return { error: error.message };
       return { ok: true, key: args.key, value: parsed };
     }

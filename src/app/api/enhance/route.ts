@@ -96,11 +96,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Nessuna immagine generata", raw: data }, { status: 500 });
     }
 
-    const aiBuf = Buffer.from(imgPart.inlineData.data, "base64");
+    const aiBuf: Buffer = Buffer.from(imgPart.inlineData.data, "base64");
 
     // POST-PROCESSING: estrae la striscia logo dalla reference e la sovrappone
     // con blend mode "lighten" (mostra solo le parti chiare = il logo).
-    let finalBuf = aiBuf;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let finalBuf: any = aiBuf;
     try {
       const refDir = path.join(process.cwd(), "public", "brand-references");
       const refs = (await readdir(refDir)).filter(f => /\.(jpe?g|png)$/i.test(f) && !f.startsWith(".")).sort();
