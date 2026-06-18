@@ -2,162 +2,220 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile, readdir } from "fs/promises";
 import path from "path";
 import sharp from "sharp";
+import { padellaLogoSvg } from "@/lib/padellaLogo";
+
+export const maxDuration = 90;
 
 const MODEL = "gemini-2.5-flash-image";
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
-const ENHANCE_PROMPT = `BACKGROUND COPY + DISH PLACE — two images input.
+// ═══════════════════════════════════════════════════════════════
+// STEP 1: AI estrae SOLO il piatto isolato (sfondo chroma key verde)
+// ═══════════════════════════════════════════════════════════════
+const EXTRACT_PROMPT = `ISOLATE THE DISH on a chroma-key background.
 
-YOU RECEIVE 2 IMAGES:
-1. IMAGE 1 = THE BRAND BACKGROUND TEMPLATE. It shows a DARK PERFORATED METAL SURFACE (matte black with regularly-spaced round holes/dots in a uniform grid pattern, like a speaker grille or audio panel). On top of it there is also some food and a wooden cutting board — IGNORE the food.
-2. IMAGE 2 = THE DISH. Take only the food/dish from this image.
+You receive ONE image of a food dish. Re-render it as follows:
+- Keep the dish itself IDENTICAL: same ingredients, same plating, same shape, same colors, same texture.
+- Place the dish at the CENTER of the output.
+- Replace EVERYTHING ELSE (background, surface, plate, hands, surroundings) with a UNIFORM SOLID BRIGHT MAGENTA color (RGB 255,0,255 — pure magenta #FF00FF). The magenta MUST be perfectly flat and uniform — no shadows, no gradients, no texture on the background.
+- The dish itself should NOT have any magenta on it.
+- Slightly improve the dish: warm appetizing lighting on it, sharpen details, professional food-photo color.
+- Square 1:1 aspect ratio output.
 
-═══════════════════════════════════════════════════════════════════
-THE OUTPUT MUST HAVE THESE NON-NEGOTIABLE VISUAL ELEMENTS:
-═══════════════════════════════════════════════════════════════════
+DO NOT include any text, logo, watermark, plate, or table — only the dish + magenta background.
+DO NOT change the dish identity (no new ingredients, no removal of ingredients).
 
-A) BACKGROUND: A LARGE DARK PERFORATED METAL SURFACE visible around the dish.
-   - Color: MATTE BLACK / very dark charcoal.
-   - Pattern: HUNDREDS of small round dots/perforations arranged in a regular grid (think: speaker grille, perforated steel sheet).
-   - Visible on AT LEAST all 4 edges of the image, taking up AT LEAST 30% of the total image area.
-   - This pattern is NOT optional — it MUST be clearly visible.
+Output: ONE photorealistic image, dish at center, surrounded by pure magenta #FF00FF.`;
 
-B) DISH PLACEMENT:
-   - The dish from IMAGE 2 is placed at the CENTER, occupying AT MOST 60-65% of the image area.
-   - Use a wooden cutting board under the dish if visually appropriate.
-   - The dish must look EXACTLY like IMAGE 2 — same ingredients, same plating, same colors. Do not alter it.
+async function loadBackground(): Promise<Buffer> {
+  const dir = path.join(process.cwd(), "public", "brand-references");
+  const files = await readdir(dir).catch(() => []);
+  const tpl = files.find(f => /^bg-template\.(jpe?g|png|webp)$/i.test(f));
+  const refs = files.filter(f => /\.(jpe?g|png|webp)$/i.test(f) && !f.startsWith(".") && !f.startsWith("bg-template")).sort();
+  const target = tpl ?? refs[0];
+  if (!target) throw new Error("No background reference found in /public/brand-references");
+  return readFile(path.join(dir, target));
+}
 
-C) LIGHTING: warm directional studio light from top-right (golden hour, 2800-3200K). Soft shadows lower-left of dish.
+/** Genera un pattern perforated nero (sfondo scuro + cerchietti grigi)
+ *  100% via SVG: nessun problema di colore/tinta. */
+async function buildPerforatedCanvas(_refBuf: Buffer, targetW: number, targetH: number): Promise<Buffer> {
+  // Pattern: cerchi distintivi su sfondo nero (matcha lo speaker-grille delle reference)
+  const dotSpacing = 32;
+  const dotRadius = 5.2;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${targetW}" height="${targetH}">
+    <defs>
+      <pattern id="perf" x="0" y="0" width="${dotSpacing}" height="${dotSpacing}" patternUnits="userSpaceOnUse">
+        <rect width="${dotSpacing}" height="${dotSpacing}" fill="#0d0d0d"/>
+        <circle cx="${dotSpacing/2}" cy="${dotSpacing/2}" r="${dotRadius}" fill="#1f1f1f"/>
+        <circle cx="${dotSpacing/2}" cy="${dotSpacing/2 - 0.6}" r="${dotRadius - 1}" fill="#040404"/>
+      </pattern>
+      <radialGradient id="vignette" cx="50%" cy="50%" r="70%">
+        <stop offset="0%" stop-color="#000000" stop-opacity="0"/>
+        <stop offset="70%" stop-color="#000000" stop-opacity="0.25"/>
+        <stop offset="100%" stop-color="#000000" stop-opacity="0.75"/>
+      </radialGradient>
+    </defs>
+    <rect width="${targetW}" height="${targetH}" fill="url(#perf)"/>
+    <rect width="${targetW}" height="${targetH}" fill="url(#vignette)"/>
+  </svg>`;
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
 
-D) EMPTY BOTTOM AREA: leave the bottom-center 12% of the image as clean dark perforated surface (no dish, no garnish). This area will receive a logo in post-processing.
+/** Rimuove i pixel magenta dal piatto AI e produce PNG con alpha.
+ *  Soglia aggressiva + correzione colore dei bordi (de-fringe). */
+async function chromaKeyMagenta(input: Buffer): Promise<Buffer> {
+  const img = sharp(input).ensureAlpha();
+  const { data, info } = await img.raw().toBuffer({ resolveWithObject: true });
+  const out = Buffer.from(data);
+  const channels = info.channels;
 
-═══════════════════════════════════════════════════════════════════
-ABSOLUTE FORBIDDEN:
-═══════════════════════════════════════════════════════════════════
-- Do NOT use a plain gray, white, beige, or smooth background. The perforated dark pattern is REQUIRED.
-- Do NOT let the dish fill the whole frame. ALWAYS leave perforated background visible around the dish.
-- Do NOT alter the dish from IMAGE 2 (no new ingredients, no different food).
-- Do NOT include the food/dish from IMAGE 1 in the output.
-- Do NOT add a logo yourself (we'll add it after).
+  for (let i = 0; i < out.length; i += channels) {
+    const r = out[i], g = out[i + 1], b = out[i + 2];
+    // Magenta = R alto + B alto + G mediamente più basso degli altri due
+    const avgRB = (r + b) / 2;
+    const greenGap = avgRB - g;
 
-Output: ONE photorealistic image, square 1:1, with the dish from IMAGE 2 placed centrally on a clearly visible DARK PERFORATED METAL background matching IMAGE 1.`;
-
-/** Carica tutte le foto di riferimento da public/brand-references/ */
-async function loadReferenceImages(): Promise<Array<{ mimeType: string; data: string }>> {
-  try {
-    const dir = path.join(process.cwd(), "public", "brand-references");
-    const files = await readdir(dir);
-    const imgs = files.filter(f => /\.(jpe?g|png|webp)$/i.test(f)).sort();
-    const out: Array<{ mimeType: string; data: string }> = [];
-    for (const f of imgs.slice(0, 3)) { // max 3 reference
-      const buf = await readFile(path.join(dir, f));
-      const ext = f.toLowerCase().split(".").pop();
-      const mimeType = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
-      out.push({ mimeType, data: buf.toString("base64") });
+    if (greenGap > 60 && avgRB > 130) {
+      // Pixel decisamente magenta → trasparente
+      out[i + 3] = 0;
+    } else if (greenGap > 25 && avgRB > 110) {
+      // Bordi: alpha sfumato + correggi tinta
+      const ratio = (greenGap - 25) / 35;
+      out[i + 3] = Math.round(255 * (1 - Math.min(1, ratio)));
+      // De-fringe: porta R e B verso G per togliere tinta magenta residua
+      out[i] = Math.round(r - (r - g) * ratio * 0.7);
+      out[i + 2] = Math.round(b - (b - g) * ratio * 0.7);
     }
-    return out;
-  } catch (e) {
-    console.warn("Nessuna reference trovata in public/brand-references:", e);
-    return [];
   }
+
+  return sharp(out, { raw: { width: info.width, height: info.height, channels } })
+    .png()
+    .toBuffer();
+}
+
+/** Costruisce sfondo perforato pulito + tagliere ovale di legno al centro.
+ *  Niente cibo della reference, niente vecchio logo. */
+async function buildCleanBackground(refBuf: Buffer): Promise<Buffer> {
+  const meta = await sharp(refBuf).metadata();
+  const W = meta.width!;
+  const H = meta.height!;
+
+  // 1. Canvas perforated pulito (tile dal patch dell'angolo)
+  const perforated = await buildPerforatedCanvas(refBuf, W, H);
+
+  // 2. Tagliere ovale di legno al centro
+  const cx = W / 2;
+  const cy = H * 0.48;
+  const rx = Math.round(W * 0.36);
+  const ry = Math.round(H * 0.42);
+  const taglierSvg = `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="wood" cx="50%" cy="40%" r="60%">
+        <stop offset="0%" stop-color="#D9B583"/>
+        <stop offset="60%" stop-color="#C49968"/>
+        <stop offset="100%" stop-color="#8A6840"/>
+      </radialGradient>
+      <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur in="SourceAlpha" stdDeviation="14"/>
+        <feOffset dx="0" dy="18" result="off"/>
+        <feComponentTransfer><feFuncA type="linear" slope="0.55"/></feComponentTransfer>
+        <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="url(#wood)" filter="url(#shadow)"/>
+    <!-- Venature legno -->
+    <g opacity="0.18" stroke="#5C3A1E" stroke-width="0.8" fill="none">
+      <path d="M ${cx-rx*0.7} ${cy-ry*0.3} Q ${cx} ${cy-ry*0.2} ${cx+rx*0.7} ${cy-ry*0.4}"/>
+      <path d="M ${cx-rx*0.6} ${cy} Q ${cx} ${cy+ry*0.1} ${cx+rx*0.6} ${cy-ry*0.05}"/>
+      <path d="M ${cx-rx*0.5} ${cy+ry*0.3} Q ${cx} ${cy+ry*0.35} ${cx+rx*0.5} ${cy+ry*0.25}"/>
+    </g>
+  </svg>`;
+
+  return sharp(perforated)
+    .composite([{ input: Buffer.from(taglierSvg), blend: "over" }])
+    .jpeg({ quality: 95 })
+    .toBuffer();
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { imageBase64, mimeType = "image/jpeg" } = await req.json();
+    const { imageBase64 } = await req.json();
     if (!imageBase64) return NextResponse.json({ error: "Missing imageBase64" }, { status: 400 });
 
     const apiKey = process.env.GOOGLE_AI_API_KEY;
-    if (!apiKey) return NextResponse.json({ error: "GOOGLE_AI_API_KEY missing in .env.local" }, { status: 500 });
+    if (!apiKey) return NextResponse.json({ error: "GOOGLE_AI_API_KEY missing" }, { status: 500 });
 
-    const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+    // Estrai mime + base64 puro
+    const mimeMatch = (imageBase64 as string).match(/^data:(image\/[a-z+]+);base64,/i);
+    const mimeType = mimeMatch ? mimeMatch[1].toLowerCase() : "image/jpeg";
+    const cleanBase64 = imageBase64.replace(/^data:image\/[a-z+]+;base64,/i, "");
 
-    // Carica UNA SOLA reference come "template di sfondo" + il piatto utente.
-    // Il prompt è esplicito su quale è quale e cosa estrarre da ciascuna.
-    const references = await loadReferenceImages();
-    const bgTemplate = references[0]; // prima reference = template sfondo
-    console.log(`Nano Banana: bg-template + 1 dish target (refs avail: ${references.length})`);
-    const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [
-      { text: ENHANCE_PROMPT },
-    ];
-    if (bgTemplate) parts.push({ inlineData: bgTemplate });
-    parts.push({ inlineData: { mimeType, data: cleanBase64 } });
-
-    const body = {
-      contents: [{ role: "user", parts }],
-      generationConfig: { responseModalities: ["IMAGE"] },
-    };
-
-    const res = await fetch(`${ENDPOINT}?key=${apiKey}`, {
+    // ─── STEP 1: AI isola il piatto su magenta ───
+    console.log("Step 1/3: AI isola dish on magenta");
+    const aiRes = await fetch(`${ENDPOINT}?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [
+          { text: EXTRACT_PROMPT },
+          { inlineData: { mimeType, data: cleanBase64 } },
+        ] }],
+        generationConfig: { responseModalities: ["IMAGE"] },
+      }),
     });
-
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("Gemini error:", res.status, text);
-      return NextResponse.json({ error: `Gemini ${res.status}: ${text}` }, { status: 500 });
+    if (!aiRes.ok) {
+      const t = await aiRes.text();
+      return NextResponse.json({ error: `Gemini ${aiRes.status}: ${t.slice(0,200)}` }, { status: 500 });
     }
+    const aiData = await aiRes.json();
+    const parts = aiData?.candidates?.[0]?.content?.parts ?? [];
+    const imgPart = parts.find((p: { inlineData?: { data?: string } }) => p.inlineData?.data);
+    if (!imgPart) return NextResponse.json({ error: "AI did not return image" }, { status: 500 });
+    const aiBuf = Buffer.from(imgPart.inlineData.data, "base64");
 
-    const data = await res.json();
-    const rspParts = data?.candidates?.[0]?.content?.parts ?? [];
-    const imgPart = rspParts.find((p: { inlineData?: { data?: string; mimeType?: string } }) => p.inlineData?.data);
-    if (!imgPart) {
-      console.error("No image in Gemini response:", JSON.stringify(data).slice(0, 500));
-      return NextResponse.json({ error: "Nessuna immagine generata", raw: data }, { status: 500 });
-    }
+    // ─── STEP 2: chroma key → piatto trasparente PNG ───
+    console.log("Step 2/3: chroma key magenta → transparent");
+    const dishPng = await chromaKeyMagenta(aiBuf);
 
-    const aiBuf: Buffer = Buffer.from(imgPart.inlineData.data, "base64");
+    // ─── STEP 3: compose deterministicamente ───
+    console.log("Step 3/3: composite onto fixed background + logo");
+    const bgRaw = await loadBackground();
+    const bgBuf = await buildCleanBackground(bgRaw); // copre la steak della reference
+    const bgMeta = await sharp(bgBuf).metadata();
+    const W = bgMeta.width!;
+    const H = bgMeta.height!;
 
-    // POST-PROCESSING: estrae la striscia logo dalla reference e la sovrappone
-    // con blend mode "lighten" (mostra solo le parti chiare = il logo).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let finalBuf: any = aiBuf;
-    try {
-      const refDir = path.join(process.cwd(), "public", "brand-references");
-      const refs = (await readdir(refDir)).filter(f => /\.(jpe?g|png)$/i.test(f) && !f.startsWith(".")).sort();
-      if (refs.length > 0) {
-        // Usa l'ULTIMA reference (più clean per logo: sfondo dark uniforme, no tagliere)
-        const logoSource = refs[refs.length - 1];
-        const refBuf = await readFile(path.join(refDir, logoSource));
-        const refMeta = await sharp(refBuf).metadata();
-        const refW = refMeta.width!;
-        const refH = refMeta.height!;
-        // Zona logo: 32% larghezza × 13% altezza nel bottom della reference
-        const logoW = Math.round(refW * 0.32);
-        const logoH = Math.round(refH * 0.13);
-        const logoX = Math.round((refW - logoW) / 2);
-        const logoY = refH - logoH - Math.round(refH * 0.005);
-        // Estrai + boost contrasto + threshold: solo pixel luminosi sopravvivono
-        const logoCrop = await sharp(refBuf)
-          .extract({ left: logoX, top: logoY, width: logoW, height: logoH })
-          .modulate({ brightness: 1.15 })
-          .linear(1.6, -80) // contrasto: scuri → neri, chiari → bianchi
-          .toBuffer();
+    // Resize piatto: occupa ~62% larghezza, max 75% altezza
+    const dishMaxW = Math.round(W * 0.62);
+    const dishMaxH = Math.round(H * 0.72);
+    const dishResized = await sharp(dishPng)
+      .resize({ width: dishMaxW, height: dishMaxH, fit: "inside", withoutEnlargement: false })
+      .toBuffer();
+    const dishMeta = await sharp(dishResized).metadata();
+    const dishW = dishMeta.width!;
+    const dishH = dishMeta.height!;
+    const dishLeft = Math.round((W - dishW) / 2);
+    const dishTop = Math.round((H - dishH) / 2) - Math.round(H * 0.04); // leggermente sopra centro
 
-        const aiMeta = await sharp(aiBuf).metadata();
-        const outW = aiMeta.width!;
-        const outH = aiMeta.height!;
-        const overlayW = Math.round(outW * 0.28);
-        const overlayH = Math.round(outH * 0.13);
-        const overlayResized = await sharp(logoCrop)
-          .resize({ width: overlayW, height: overlayH, fit: "contain", background: { r:0,g:0,b:0,alpha:0 } })
-          .toBuffer();
+    // Logo SVG → PNG, posizionato in basso al centro
+    const logoW = Math.round(W * 0.28);
+    const logoPng = await sharp(Buffer.from(padellaLogoSvg(logoW))).png().toBuffer();
+    const logoMeta = await sharp(logoPng).metadata();
+    const logoH = logoMeta.height!;
+    const logoLeft = Math.round((W - logoW) / 2);
+    const logoTop = H - logoH - Math.round(H * 0.02); // 2% padding dal fondo
 
-        const overlayX = Math.round((outW - overlayW) / 2);
-        const overlayY = outH - overlayH - Math.round(outH * 0.015);
-        finalBuf = await sharp(aiBuf)
-          .composite([{ input: overlayResized, top: overlayY, left: overlayX, blend: "screen" }])
-          .jpeg({ quality: 90 })
-          .toBuffer();
-      }
-    } catch (e) {
-      console.warn("Compositing logo fallito (uso output AI senza logo):", e);
-    }
+    const finalBuf = await sharp(bgBuf)
+      .composite([
+        { input: dishResized, top: dishTop, left: dishLeft },
+        { input: logoPng, top: logoTop, left: logoLeft },
+      ])
+      .jpeg({ quality: 92 })
+      .toBuffer();
 
     const dataUrl = `data:image/jpeg;base64,${finalBuf.toString("base64")}`;
-    return NextResponse.json({ imageDataUrl: dataUrl, mode: "single-image-edit+logo-overlay" });
+    return NextResponse.json({ imageDataUrl: dataUrl, mode: "deterministic-pipeline" });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: err instanceof Error ? err.message : "unknown" }, { status: 500 });
