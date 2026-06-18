@@ -337,16 +337,47 @@ export default function AdminMenuAIPage() {
     setMsgs(prev => [...prev, { id: Date.now(), role: "user", text: val }]);
     setLoading(true);
 
-    await new Promise(r => setTimeout(r, 700 + Math.random()*500));
-
-    const low = val.toLowerCase();
+    // === PARSING INTELLIGENTE con Gemini ===
+    let intent: string = "unclear";
+    let parsedFields: { name?: string|null; category?: string|null; price?: number|null; description?: string|null; missing?: string[]; explanation?: string } = {};
+    try {
+      const parseRes = await fetch("/api/parse-menu", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: val,
+          pending: pendingItem ? {
+            name: pendingItem.name, category: pendingItem.category,
+            description: pendingItem.description, price: pendingItem.price,
+          } : null,
+        }),
+      });
+      const j = await parseRes.json();
+      if (parseRes.ok) {
+        intent = j.intent ?? "unclear";
+        parsedFields = j;
+      }
+    } catch (e) {
+      console.warn("parse-menu failed:", e);
+    }
 
     // Confirm add
-    if (pendingItem && (low.includes("sì") || low.includes("si") || low.includes("ok") || low.includes("conferma") || low.includes("aggiungi"))) {
+    if (pendingItem && intent === "confirm") {
       const photo = pendingProcessed ?? pendingItem.img ?? null;
       const name = pendingItem.name ?? "Piatto";
-      const price = pendingItem.price ?? 280;
-      const category = pendingItem.category ?? "pasta";
+      const price = pendingItem.price ?? 0;
+      const category = pendingItem.category ?? "starter";
+
+      // Validation
+      if (!pendingItem.name || !pendingItem.category || !pendingItem.price) {
+        const missing: string[] = [];
+        if (!pendingItem.name) missing.push("**nome**");
+        if (!pendingItem.category) missing.push("**categoria**");
+        if (!pendingItem.price) missing.push("**prezzo**");
+        setMsgs(prev => [...prev, { id: Date.now(), role: "ai",
+          text: `⚠️ Manca ancora: ${missing.join(", ")}. Aggiungili prima di confermare.` }]);
+        setLoading(false); return;
+      }
 
       // Messaggio "salvataggio su Firebase..."
       const savingMsgId = Date.now();
@@ -386,30 +417,51 @@ export default function AdminMenuAIPage() {
       setLoading(false); return;
     }
 
-    // Parse new dish command
-    if (pendingImg || low.includes("aggiungi") || low.includes("inserisci") || low.includes("pizza") || low.includes("pasta") || low.match(/\d{3}/)) {
-      const parsed = parseMenuCommand(val, pendingProcessed ?? pendingImg) as Partial<MenuItem> & { reply: string; incomplete?: boolean };
-      // Se mancano dati, non mostrare la card — solo chiedi info mancanti
-      if (parsed.incomplete) {
-        setPendingItem({ category: parsed.category, img: parsed.img, ...(parsed.name ? { name: parsed.name } : {}) });
-        setMsgs(prev => [...prev, { id: Date.now(), role: "ai", text: parsed.reply }]);
+    // === ADD o MODIFY: usa i campi estratti da Gemini ===
+    if (intent === "add" || intent === "modify") {
+      // Merge: parte da pendingItem (o vuoto) + sovrascrive con i campi nuovi
+      const merged: Partial<MenuItem> = {
+        ...(pendingItem ?? {}),
+        ...(parsedFields.name ? { name: parsedFields.name } : {}),
+        ...(parsedFields.category ? { category: parsedFields.category } : {}),
+        ...(parsedFields.price ? { price: parsedFields.price } : {}),
+        ...(parsedFields.description ? { description: parsedFields.description } : {}),
+        img: pendingProcessed ?? pendingImg ?? pendingItem?.img ?? null,
+      };
+      setPendingItem(merged);
+
+      // Costruisci anteprima
+      const lines: string[] = [];
+      lines.push("📋 **Anteprima — verifica prima di confermare:**\n");
+      lines.push(`• **Nome**: ${merged.name ?? "—"}`);
+      lines.push(`• **Categoria**: ${merged.category ?? "—"}`);
+      lines.push(`• **Prezzo**: ${merged.price ? merged.price + " THB" : "—"}`);
+      lines.push(`• **Descrizione**: ${merged.description ?? "—"}`);
+
+      const missing: string[] = [];
+      if (!merged.name) missing.push("nome");
+      if (!merged.category) missing.push("categoria");
+      if (!merged.price) missing.push("prezzo");
+
+      if (missing.length > 0) {
+        lines.push(`\n⚠️ Mancano: **${missing.join(", ")}**. Aggiungili e poi conferma.`);
       } else {
-        setPendingItem(parsed);
-        setMsgs(prev => [...prev, { id: Date.now(), role: "ai", text: parsed.reply, card: parsed as MenuItem }]);
+        lines.push(`\n✅ Tutti i campi sono compilati. Rispondi **"sì"** per salvare, o correggi qualcosa.`);
       }
+
+      const card = merged.name && merged.category && merged.price
+        ? { ...merged, id: "preview", story: "", tags: [] } as MenuItem
+        : undefined;
+
+      setMsgs(prev => [...prev, { id: Date.now(), role: "ai", text: lines.join("\n"), ...(card ? { card } : {}) }]);
       setLoading(false); return;
     }
 
-    // Modify pending
-    if (pendingItem) {
-      const priceMatch = val.match(/(\d{2,4})\s*(thb|baht)?/i);
-      if (priceMatch) {
-        setPendingItem(p => ({ ...p, price: parseInt(priceMatch[1]) }));
-        setMsgs(prev => [...prev, { id: Date.now(), role: "ai", text: `✅ Prezzo aggiornato a **${priceMatch[1]} THB**. Confermi?` }]);
-      } else {
-        setPendingItem(p => ({ ...p, name: val.split(" ").map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" ") }));
-        setMsgs(prev => [...prev, { id: Date.now(), role: "ai", text: `✅ Nome aggiornato a **${val}**. Confermi?` }]);
-      }
+    // === CANCEL ===
+    if (intent === "cancel" && pendingItem) {
+      setPendingItem(null); setPendingImg(null); setPendingProcessed(null);
+      setMsgs(prev => [...prev, { id: Date.now(), role: "ai",
+        text: "❎ Annullato. Carica un'altra foto o riparti da capo." }]);
       setLoading(false); return;
     }
 
