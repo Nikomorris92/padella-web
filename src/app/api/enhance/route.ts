@@ -39,34 +39,6 @@ async function buildPerforatedCanvas(W: number, H: number): Promise<Buffer> {
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-function woodTaglierSvg(W: number, H: number): string {
-  const cx = W / 2;
-  const cy = H * 0.48;
-  const rx = Math.round(W * 0.36);
-  const ry = Math.round(H * 0.42);
-  return `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <radialGradient id="wood" cx="50%" cy="40%" r="60%">
-        <stop offset="0%" stop-color="#D9B583"/>
-        <stop offset="60%" stop-color="#C49968"/>
-        <stop offset="100%" stop-color="#8A6840"/>
-      </radialGradient>
-      <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-        <feGaussianBlur in="SourceAlpha" stdDeviation="14"/>
-        <feOffset dx="0" dy="18" result="off"/>
-        <feComponentTransfer><feFuncA type="linear" slope="0.55"/></feComponentTransfer>
-        <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
-      </filter>
-    </defs>
-    <ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="url(#wood)" filter="url(#shadow)"/>
-    <g opacity="0.18" stroke="#5C3A1E" stroke-width="0.8" fill="none">
-      <path d="M ${cx-rx*0.7} ${cy-ry*0.3} Q ${cx} ${cy-ry*0.2} ${cx+rx*0.7} ${cy-ry*0.4}"/>
-      <path d="M ${cx-rx*0.6} ${cy} Q ${cx} ${cy+ry*0.1} ${cx+rx*0.6} ${cy-ry*0.05}"/>
-      <path d="M ${cx-rx*0.5} ${cy+ry*0.3} Q ${cx} ${cy+ry*0.35} ${cx+rx*0.5} ${cy+ry*0.25}"/>
-    </g>
-  </svg>`;
-}
-
 /** Filtro brand warm applicato ai PIXEL ORIGINALI del piatto. */
 async function applyBrandFilter(dishBuf: Buffer): Promise<Buffer> {
   return sharp(dishBuf)
@@ -96,12 +68,12 @@ export async function POST(req: NextRequest) {
     const W = refMeta.width!;
     const H = refMeta.height!;
 
-    // Costruisce template: perforated + tagliere + piatto + logo
+    // Costruisce template: perforated + piatto-con-supporto + logo
+    // NESSUN tagliere inventato: piatto + supporto vengono dalla foto utente.
     const perforated = await buildPerforatedCanvas(W, H);
-    const tagliere = Buffer.from(woodTaglierSvg(W, H));
 
-    const dishMaxW = Math.round(W * 0.62);
-    const dishMaxH = Math.round(H * 0.72);
+    const dishMaxW = Math.round(W * 0.75);
+    const dishMaxH = Math.round(H * 0.78);
     const dishResized = await sharp(dishFiltered)
       .resize({ width: dishMaxW, height: dishMaxH, fit: "inside" })
       .toBuffer();
@@ -111,16 +83,15 @@ export async function POST(req: NextRequest) {
     const dishLeft = Math.round((W - dishW) / 2);
     const dishTop = Math.round((H - dishH) / 2) - Math.round(H * 0.04);
 
-    const logoW = Math.round(W * 0.28);
+    const logoW = Math.round(W * 0.32);
     const logoPng = await sharp(Buffer.from(padellaLogoSvg(logoW))).png().toBuffer();
     const logoMeta = await sharp(logoPng).metadata();
     const logoH = logoMeta.height!;
     const logoLeft = Math.round((W - logoW) / 2);
-    const logoTop = H - logoH - Math.round(H * 0.02);
+    const logoTop = H - logoH - Math.round(H * 0.025);
 
     const finalBuf = await sharp(perforated)
       .composite([
-        { input: tagliere },
         { input: dishResized, top: dishTop, left: dishLeft },
         { input: logoPng, top: logoTop, left: logoLeft },
       ])
