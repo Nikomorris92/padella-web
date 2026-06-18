@@ -11,11 +11,6 @@ import FloatingCTA from "@/components/FloatingCTA";
 export default function PublicChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAdminRoute = pathname?.startsWith("/admin");
-  const [isAdminUser, setIsAdminUser] = useState(false);
-
-  useEffect(() => {
-    setIsAdminUser(localStorage.getItem("padella_admin") === "true");
-  }, [pathname]);
 
   return (
     <>
@@ -24,10 +19,10 @@ export default function PublicChrome({ children }: { children: React.ReactNode }
       {!isAdminRoute && <Footer />}
       {!isAdminRoute && <FloatingCTA />}
 
-      {/* Floating Admin "A" — visibile solo per admin nelle pagine pubbliche.
-          Top-right, fixed, z-index alto, separato da tutto il resto. */}
+      {/* Pulsante Admin "A" — sempre visibile nelle pagine pubbliche.
+          Click → /admin (AdminGuard chiede login se non autenticato). */}
       <AnimatePresence>
-        {!isAdminRoute && isAdminUser && (
+        {!isAdminRoute && (
           <motion.div
             initial={{ opacity: 0, scale: 0.6, x: 10 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
@@ -37,7 +32,7 @@ export default function PublicChrome({ children }: { children: React.ReactNode }
           >
             <Link
               href="/admin"
-              title="Vai al pannello admin"
+              title="Pannello admin (richiede login)"
               className="flex items-center justify-center w-10 h-10 rounded-full bg-padella-gold border-2 border-padella-gold hover:scale-110 active:scale-95 transition-all duration-200 shadow-xl"
             >
               <span className="text-padella-green font-display font-bold text-lg leading-none select-none">A</span>
