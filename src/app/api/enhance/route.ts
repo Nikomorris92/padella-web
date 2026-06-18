@@ -95,9 +95,9 @@ export async function POST(req: NextRequest) {
       ? await readFile(path.join(dir, tplName))
       : await buildPerforatedCanvas(W, H);
 
-    // Piatto al centro: ingrandito ~10% (~3cm visivi), sempre sopra il logo
-    const dishMaxW = Math.round(W * 0.82);
-    const dishMaxH = Math.round(H * 0.82);
+    // Piatto al centro MOLTO grande (~+8cm visivi). Posizione alta per evitare il logo.
+    const dishMaxW = Math.round(W * 0.95);
+    const dishMaxH = Math.round(H * 0.85);
     const dishResized = await sharp(dishFiltered)
       .resize({ width: dishMaxW, height: dishMaxH, fit: "inside" })
       .toBuffer();
@@ -105,8 +105,8 @@ export async function POST(req: NextRequest) {
     const dishW = dishMeta.width!;
     const dishH = dishMeta.height!;
     const dishLeft = Math.round((W - dishW) / 2);
-    // Posizionato verticalmente: leggermente sopra il centro per non coprire il logo
-    const dishTop = Math.round((H - dishH) / 2) - Math.round(H * 0.05);
+    // Spinto su per non coprire il logo (che è in fondo)
+    const dishTop = Math.round((H - dishH) / 2) - Math.round(H * 0.04);
 
     // Quando uso bg-template REALE, il logo del template è già nell'immagine: niente SVG logo.
     const composites: Array<{ input: Buffer; top: number; left: number }> = [
