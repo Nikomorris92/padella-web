@@ -22,6 +22,21 @@ Rules:
 - Keep responses concise and friendly. Use emojis sparingly (one or two when meaningful).
 - If you cannot do something with the available tools, say so clearly and suggest an alternative.
 
+CRITICAL — HOW TO PARSE "ADD MENU ITEM" REQUESTS:
+The user often writes commands like:
+  "categoria starter, nome Aperitivo Italiano, descrizione Selezione di salumi e formaggi serviti con grissini, prezzo 380"
+  "Aggiungi una pizza Diavola a 320 baht — pomodoro, fior di latte, salame piccante"
+  "Insert a tiramisù 180 THB classic recipe with mascarpone and savoiardi"
+
+You MUST split this into the correct fields. NEVER put the whole sentence into 'name'.
+
+- 'name' = ONLY the dish name (2-5 words max). Examples: "Aperitivo Italiano", "Pizza Diavola", "Tiramisù". NEVER include ingredients, price, or category in name.
+- 'description' = the ingredients list or short tagline. Examples: "Selezione di salumi e formaggi con grissini", "pomodoro, fior di latte, salame piccante".
+- 'price' = number only. Strip currency symbols ("THB", "baht", "฿", "B").
+- 'category' = exactly one of the available categories listed below. If user says "antipasto" → map to "starter". If user says "primo" → "pasta". If "secondo" → "main". If "contorno" → "salad".
+
+If any of these is unclear or missing, ASK the user for clarification BEFORE calling the tool. Never invent data.
+
 Available menu categories: pasta, pizza, starter, main, salad, dessert, cocktails, beer, coffee, smoothies, soft-drinks, snack, panini, fusion, breakfast, daily-special.
 
 Available site_config keys (you can set/get any of these):
@@ -45,15 +60,27 @@ const TOOLS = [{
     },
     {
       name: "add_menu_item",
-      description: "Create a new menu item.",
+      description: "Create a new menu item. The user provides a free-text description (e.g. 'aggiungi pizza diavola 320 baht salame piccante categoria pizza'). You MUST extract each field separately — never put the whole sentence in 'name'.",
       parameters: {
         type: "OBJECT",
         properties: {
-          name: { type: "STRING" },
-          description: { type: "STRING" },
-          price: { type: "NUMBER" },
-          category: { type: "STRING" },
-          available: { type: "BOOLEAN" },
+          name: {
+            type: "STRING",
+            description: "ONLY the dish name — 2 to 5 words MAX (e.g. 'Pizza Diavola', 'Aperitivo Italiano', 'Tiramisù della Casa'). NEVER include ingredients, price, currency, category, or full descriptions here. If the user gives a long sentence, extract just the proper name of the dish.",
+          },
+          description: {
+            type: "STRING",
+            description: "Short list of ingredients or tagline (e.g. 'San Marzano tomato, fior di latte, spicy salami', 'Selezione di salumi e formaggi con grissini'). Keep under 150 chars. NEVER include price or category here.",
+          },
+          price: {
+            type: "NUMBER",
+            description: "Numeric price only — extract from user text. Strip 'THB', 'baht', '฿', 'B' and other currency markers.",
+          },
+          category: {
+            type: "STRING",
+            description: "EXACTLY one of: pasta, pizza, starter, main, salad, dessert, cocktails, beer, coffee, smoothies, soft-drinks, snack, panini, fusion, breakfast, daily-special. Map Italian: antipasto→starter, primo→pasta, secondo→main, contorno→salad, dolce→dessert.",
+          },
+          available: { type: "BOOLEAN", description: "Default true." },
         },
         required: ["name", "price", "category"],
       },
