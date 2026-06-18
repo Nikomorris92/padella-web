@@ -18,21 +18,39 @@ async function loadBackgroundReference(): Promise<Buffer> {
 }
 
 async function buildPerforatedCanvas(W: number, H: number): Promise<Buffer> {
-  const dotSpacing = 32;
-  const dotRadius = 5.2;
+  // Pattern fedele alle reference: cerchi piccoli scuri profondi su metal grigio
+  const dotSpacing = 28;
+  const dotRadius = 4.2;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
     <defs>
+      <!-- Sfondo metallico leggermente texturizzato -->
+      <radialGradient id="metalBg" cx="50%" cy="40%" r="80%">
+        <stop offset="0%" stop-color="#1c1c1c"/>
+        <stop offset="60%" stop-color="#0e0e0e"/>
+        <stop offset="100%" stop-color="#020202"/>
+      </radialGradient>
+      <!-- Singolo foro: con shadow interna per profondità -->
+      <radialGradient id="hole" cx="50%" cy="35%" r="55%">
+        <stop offset="0%" stop-color="#1a1a1a"/>
+        <stop offset="50%" stop-color="#000000"/>
+        <stop offset="100%" stop-color="#000000"/>
+      </radialGradient>
       <pattern id="perf" x="0" y="0" width="${dotSpacing}" height="${dotSpacing}" patternUnits="userSpaceOnUse">
-        <rect width="${dotSpacing}" height="${dotSpacing}" fill="#0d0d0d"/>
-        <circle cx="${dotSpacing/2}" cy="${dotSpacing/2}" r="${dotRadius}" fill="#1f1f1f"/>
-        <circle cx="${dotSpacing/2}" cy="${dotSpacing/2 - 0.6}" r="${dotRadius - 1}" fill="#040404"/>
+        <!-- Cerchio esterno leggero (bordo del foro) -->
+        <circle cx="${dotSpacing/2}" cy="${dotSpacing/2}" r="${dotRadius + 0.6}" fill="#2a2a2a" opacity="0.7"/>
+        <!-- Foro nero profondo -->
+        <circle cx="${dotSpacing/2}" cy="${dotSpacing/2}" r="${dotRadius}" fill="url(#hole)"/>
+        <!-- Riflesso minimo in alto -->
+        <ellipse cx="${dotSpacing/2 - 0.5}" cy="${dotSpacing/2 - dotRadius*0.5}" rx="${dotRadius*0.3}" ry="${dotRadius*0.18}" fill="#3a3a3a" opacity="0.4"/>
       </pattern>
-      <radialGradient id="vignette" cx="50%" cy="50%" r="70%">
+      <!-- Vignette ai bordi -->
+      <radialGradient id="vignette" cx="50%" cy="50%" r="75%">
         <stop offset="0%" stop-color="#000000" stop-opacity="0"/>
-        <stop offset="70%" stop-color="#000000" stop-opacity="0.25"/>
-        <stop offset="100%" stop-color="#000000" stop-opacity="0.75"/>
+        <stop offset="70%" stop-color="#000000" stop-opacity="0.35"/>
+        <stop offset="100%" stop-color="#000000" stop-opacity="0.80"/>
       </radialGradient>
     </defs>
+    <rect width="${W}" height="${H}" fill="url(#metalBg)"/>
     <rect width="${W}" height="${H}" fill="url(#perf)"/>
     <rect width="${W}" height="${H}" fill="url(#vignette)"/>
   </svg>`;
@@ -68,8 +86,7 @@ export async function POST(req: NextRequest) {
     const W = refMeta.width!;
     const H = refMeta.height!;
 
-    // Costruisce template: perforated + piatto-con-supporto + logo
-    // NESSUN tagliere inventato: piatto + supporto vengono dalla foto utente.
+    // SOLO sfondo perforato + dish + logo. Niente tagliere finto.
     const perforated = await buildPerforatedCanvas(W, H);
 
     const dishMaxW = Math.round(W * 0.75);
@@ -81,9 +98,9 @@ export async function POST(req: NextRequest) {
     const dishW = dishMeta.width!;
     const dishH = dishMeta.height!;
     const dishLeft = Math.round((W - dishW) / 2);
-    const dishTop = Math.round((H - dishH) / 2) - Math.round(H * 0.04);
+    const dishTop = Math.round((H - dishH) / 2) - Math.round(H * 0.06);
 
-    const logoW = Math.round(W * 0.32);
+    const logoW = Math.round(W * 0.30);
     const logoPng = await sharp(Buffer.from(padellaLogoSvg(logoW))).png().toBuffer();
     const logoMeta = await sharp(logoPng).metadata();
     const logoH = logoMeta.height!;
