@@ -6,6 +6,23 @@ import { Send, ImagePlus, X, Check, Sparkles, Loader2, ChefHat, Wand2 } from "lu
 import { MENU_CATEGORIES } from "@/lib/menuData";
 import { addMenuItem } from "@/lib/menuRepo";
 
+/** Background removal client-side via @imgly/background-removal (WASM).
+ *  PRESERVA i pixel originali del piatto (nessuna AI regeneration). */
+async function removeBackgroundClient(dataUrl: string): Promise<string> {
+  const { removeBackground } = await import("@imgly/background-removal");
+  // Riconverte dataURL → Blob
+  const blob = await (await fetch(dataUrl)).blob();
+  const resultBlob = await removeBackground(blob, {
+    output: { format: "image/png", quality: 0.95 },
+  });
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(resultBlob);
+  });
+}
+
 const CATEGORY_EMOJI: Record<string, string> = {
   pasta:"🍝",pizza:"🍕",starter:"🫒",cocktails:"🍹",dessert:"🍮",
   main:"🥩",snack:"🥨",salad:"🥗",smoothies:"🥭",coffee:"☕",
@@ -255,22 +272,28 @@ export default function AdminMenuAIPage() {
           : m
         ));
 
-        // STEP 2: Nano Banana enhancement (Gemini)
+        // STEP 2: Background removal CLIENT-SIDE (preserva pixel originali) + compositing server
         const aiMsgId = Date.now() + 7;
         setMsgs(prev => [...prev, {
           id: aiMsgId, role: "ai",
-          text: "Nano Banana AI sta migliorando la foto...",
+          text: "Estraggo il piatto dalla foto originale (pixel-perfect)...",
           uploadStage: "filtering", uploadProgress: 20,
         }]);
 
         try {
+          // Browser rimuove sfondo dai pixel ORIGINALI (no AI redraw)
+          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 40 } : m));
+          const dishPng = await removeBackgroundClient(raw);
+          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 70 } : m));
+
+          // Server composita il piatto trasparente su template brand
           const aiRes = await fetch("/api/enhance", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ imageBase64: processed, mimeType: "image/jpeg" }),
+            body: JSON.stringify({ imageBase64: dishPng, mimeType: "image/png" }),
           });
           const aiData = await aiRes.json();
-          if (!aiRes.ok || !aiData.imageDataUrl) throw new Error(aiData.error || "Errore AI");
+          if (!aiRes.ok || !aiData.imageDataUrl) throw new Error(aiData.error || "Errore compositing");
 
           // Sostituisco pendingProcessed con la versione AI (usata poi per il salvataggio)
           setPendingProcessed(aiData.imageDataUrl);
