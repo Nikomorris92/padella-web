@@ -276,9 +276,39 @@ export default function AdminMenuAIPage() {
           setPendingProcessed(aiData.imageDataUrl);
           setMsgs(prev => prev.map(m => m.id === aiMsgId ? {
             ...m, uploadStage: "done", uploadProgress: 100,
-            text: `🎨 **Nano Banana ha migliorato la foto!**\n\nLuce calda, sfondo elegante, dettagli pro — il piatto è stato preservato esattamente com'è.\n\nOra scrivi nome, prezzo, categoria. Es: *"Croissant 95 THB breakfast"*`,
+            text: `🎨 **Nano Banana ha migliorato la foto!**\n\nLuce calda, sfondo elegante, dettagli pro.\n\n🔍 Sto analizzando il piatto per riconoscerlo...`,
             img: aiData.imageDataUrl,
           } : m));
+
+          // STEP 3: detect dish category + name + ingredients via Gemini Vision
+          try {
+            const detectRes = await fetch("/api/detect-dish", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ imageBase64: aiData.imageDataUrl, mimeType: "image/jpeg" }),
+            });
+            const det = await detectRes.json();
+            if (detectRes.ok && det.category) {
+              // Pre-popola il pending item con i suggerimenti
+              setPendingItem({
+                category: det.category,
+                name: det.suggested_name || "",
+                description: det.visible_ingredients || "",
+                img: aiData.imageDataUrl,
+              });
+              const confEmoji = det.confidence === "high" ? "🟢" : det.confidence === "medium" ? "🟡" : "🟠";
+              setMsgs(prev => [...prev, {
+                id: Date.now() + 8, role: "ai",
+                text: `${confEmoji} **Ho riconosciuto il piatto:**\n\n• **Categoria**: ${det.category}\n• **Nome suggerito**: ${det.suggested_name || "—"}\n• **Ingredienti visibili**: ${det.visible_ingredients || "—"}\n• **Confidenza**: ${det.confidence}\n\nSe ti va bene, scrivi il **prezzo** (es. "320 THB") e confermo.\nAltrimenti correggi: *"nome Pizza Margherita"*, *"categoria pizza"*, ecc.`,
+              }]);
+            }
+          } catch (detErr) {
+            console.warn("Detect dish failed:", detErr);
+            setMsgs(prev => [...prev, {
+              id: Date.now() + 8, role: "ai",
+              text: "Non sono riuscito a riconoscere il piatto in automatico. Scrivi tu nome, prezzo, categoria.\nEsempio: *\"Pizza Margherita 280 THB pizza\"*",
+            }]);
+          }
         } catch (aiErr) {
           console.error("AI enhance failed:", aiErr);
           setMsgs(prev => prev.map(m => m.id === aiMsgId ? {

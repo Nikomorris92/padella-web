@@ -1,0 +1,98 @@
+import { NextRequest, NextResponse } from "next/server";
+
+export const maxDuration = 60;
+
+const MODEL = "gemini-2.5-flash";
+const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+
+const PROMPT = `You are looking at a food/drink photo for an Italian restaurant + padel club + pool ("Padella Bangkok").
+
+Analyze the image and identify the dish.
+
+OUTPUT FORMAT — strict JSON, no markdown, no extra text:
+{
+  "category": "<one of: pasta, pizza, starter, main, salad, dessert, cocktails, beer, coffee, smoothies, soft-drinks, snack, panini, fusion, breakfast, daily-special>",
+  "suggested_name": "<short dish name, 2-5 words, in English. Examples: 'Pizza Margherita', 'Spaghetti Carbonara', 'Tiramisù', 'Aperol Spritz'>",
+  "visible_ingredients": "<comma-separated short list of what you see, max 12 words>",
+  "confidence": "<high | medium | low>"
+}
+
+Category mapping rules:
+- A pizza (round flatbread with toppings) → "pizza"
+- Pasta dish (spaghetti, penne, fettuccine, ravioli, lasagne, gnocchi) → "pasta"
+- Appetizers (bruschetta, tagliere salumi, antipasti misti, olive, finger food) → "starter"
+- Sandwich/panino → "panini"
+- Main course meat or fish (steak, branzino, ossobuco, etc.) → "main"
+- Salads → "salad"
+- Sweet desserts (tiramisù, panna cotta, cannoli, gelato, cakes) → "dessert"
+- Cocktails (Spritz, Negroni, mojito etc.) → "cocktails"
+- Beer in glass/bottle → "beer"
+- Espresso, cappuccino, latte → "coffee"
+- Fruit smoothies → "smoothies"
+- Sodas, juices, water → "soft-drinks"
+- Light bites (chips, fries, popcorn) → "snack"
+- Breakfast items (eggs, pancakes, cornetto) → "breakfast"
+- Asian-Italian fusion → "fusion"
+
+Be DECISIVE. If you see a round flatbread with cheese/tomato — it's a "pizza", not "starter". If unsure between two close categories, pick the most specific.
+
+Confidence:
+- "high": you can clearly see what it is
+- "medium": likely but not 100% certain
+- "low": image is blurry / weird angle / cannot really tell
+
+Output ONLY the JSON object.`;
+
+export async function POST(req: NextRequest) {
+  try {
+    const { imageBase64, mimeType: hintedMime } = await req.json();
+    if (!imageBase64) return NextResponse.json({ error: "Missing imageBase64" }, { status: 400 });
+
+    const apiKey = process.env.GOOGLE_AI_API_KEY;
+    if (!apiKey) return NextResponse.json({ error: "GOOGLE_AI_API_KEY missing" }, { status: 500 });
+
+    // Estrai mime dalla dataURL se presente (più affidabile dell'hint)
+    const mimeMatch = (imageBase64 as string).match(/^data:(image\/[a-z+]+);base64,/i);
+    const mimeType = mimeMatch ? mimeMatch[1].toLowerCase() : (hintedMime ?? "image/jpeg");
+    const cleanBase64 = imageBase64.replace(/^data:image\/[a-z+]+;base64,/i, "");
+
+    const body = {
+      contents: [{
+        role: "user",
+        parts: [
+          { text: PROMPT },
+          { inlineData: { mimeType, data: cleanBase64 } },
+        ],
+      }],
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: "application/json",
+      },
+    };
+
+    const res = await fetch(`${ENDPOINT}?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      return NextResponse.json({ error: `Gemini ${res.status}: ${text.slice(0,300)}` }, { status: 500 });
+    }
+
+    const data = await res.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+    let parsed: { category?: string; suggested_name?: string; visible_ingredients?: string; confidence?: string } = {};
+    try { parsed = JSON.parse(text); } catch { /* fallback below */ }
+
+    return NextResponse.json({
+      category: parsed.category ?? "starter",
+      suggested_name: parsed.suggested_name ?? "",
+      visible_ingredients: parsed.visible_ingredients ?? "",
+      confidence: parsed.confidence ?? "low",
+    });
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "unknown" }, { status: 500 });
+  }
+}
