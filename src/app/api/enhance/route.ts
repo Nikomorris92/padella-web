@@ -95,10 +95,14 @@ export async function POST(req: NextRequest) {
       ? await readFile(path.join(dir, tplName))
       : await buildPerforatedCanvas(W, H);
 
-    // Piatto al centro MOLTO grande (~+8cm visivi). Posizione alta per evitare il logo.
+    // Piatto al centro MOLTO grande. PRIMA fai trim del padding trasparente
+    // (la foto bg-removed ha tante zone transparent intorno → piatto piccolo).
+    const dishTrimmed = await sharp(dishFiltered)
+      .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 5 })
+      .toBuffer();
     const dishMaxW = Math.round(W * 0.95);
     const dishMaxH = Math.round(H * 0.85);
-    const dishResized = await sharp(dishFiltered)
+    const dishResized = await sharp(dishTrimmed)
       .resize({ width: dishMaxW, height: dishMaxH, fit: "inside" })
       .toBuffer();
     const dishMeta = await sharp(dishResized).metadata();
