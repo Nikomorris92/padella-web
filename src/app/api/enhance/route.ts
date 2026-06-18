@@ -95,9 +95,9 @@ export async function POST(req: NextRequest) {
       ? await readFile(path.join(dir, tplName))
       : await buildPerforatedCanvas(W, H);
 
-    // Piatto al centro: occupa max 70% area, posizionato sopra il logo (che è in basso al 90%)
-    const dishMaxW = Math.round(W * 0.70);
-    const dishMaxH = Math.round(H * 0.72);
+    // Piatto al centro: ingrandito ~10% (~3cm visivi), sempre sopra il logo
+    const dishMaxW = Math.round(W * 0.82);
+    const dishMaxH = Math.round(H * 0.82);
     const dishResized = await sharp(dishFiltered)
       .resize({ width: dishMaxW, height: dishMaxH, fit: "inside" })
       .toBuffer();
