@@ -86,11 +86,18 @@ export async function POST(req: NextRequest) {
     const W = refMeta.width!;
     const H = refMeta.height!;
 
-    // SOLO sfondo perforato + dish + logo. Niente tagliere finto.
-    const perforated = await buildPerforatedCanvas(W, H);
+    // Cerca bg-template.* nella cartella reference → quello è il canvas REALE.
+    // Altrimenti fallback su SVG perforated (sintetico).
+    const dir = path.join(process.cwd(), "public", "brand-references");
+    const files = await readdir(dir).catch(() => []);
+    const tplName = files.find(f => /^bg-template\.(jpe?g|png|webp)$/i.test(f));
+    const baseCanvas = tplName
+      ? await readFile(path.join(dir, tplName))
+      : await buildPerforatedCanvas(W, H);
 
+    // Piatto al centro: sized per coprire la ciotola/piatto della template
     const dishMaxW = Math.round(W * 0.75);
-    const dishMaxH = Math.round(H * 0.78);
+    const dishMaxH = Math.round(H * 0.75);
     const dishResized = await sharp(dishFiltered)
       .resize({ width: dishMaxW, height: dishMaxH, fit: "inside" })
       .toBuffer();
@@ -98,20 +105,27 @@ export async function POST(req: NextRequest) {
     const dishW = dishMeta.width!;
     const dishH = dishMeta.height!;
     const dishLeft = Math.round((W - dishW) / 2);
+    // Centro verticale leggermente sopra (il logo del template sta in basso)
     const dishTop = Math.round((H - dishH) / 2) - Math.round(H * 0.06);
 
-    const logoW = Math.round(W * 0.30);
-    const logoPng = await sharp(Buffer.from(padellaLogoSvg(logoW))).png().toBuffer();
-    const logoMeta = await sharp(logoPng).metadata();
-    const logoH = logoMeta.height!;
-    const logoLeft = Math.round((W - logoW) / 2);
-    const logoTop = H - logoH - Math.round(H * 0.025);
+    // Quando uso bg-template REALE, il logo del template è già nell'immagine: niente SVG logo.
+    const composites: Array<{ input: Buffer; top: number; left: number }> = [
+      { input: dishResized, top: dishTop, left: dishLeft },
+    ];
+    if (!tplName) {
+      const logoW = Math.round(W * 0.30);
+      const logoPng = await sharp(Buffer.from(padellaLogoSvg(logoW))).png().toBuffer();
+      const logoMeta = await sharp(logoPng).metadata();
+      const logoH = logoMeta.height!;
+      composites.push({
+        input: logoPng,
+        top: H - logoH - Math.round(H * 0.025),
+        left: Math.round((W - logoW) / 2),
+      });
+    }
 
-    const finalBuf = await sharp(perforated)
-      .composite([
-        { input: dishResized, top: dishTop, left: dishLeft },
-        { input: logoPng, top: logoTop, left: logoLeft },
-      ])
+    const finalBuf = await sharp(baseCanvas)
+      .composite(composites)
       .jpeg({ quality: 92 })
       .toBuffer();
 
