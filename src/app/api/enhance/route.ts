@@ -86,8 +86,8 @@ export async function POST(req: NextRequest) {
     const W = refMeta.width!;
     const H = refMeta.height!;
 
-    // Cerca bg-template.* nella cartella reference → quello è il canvas REALE.
-    // Altrimenti fallback su SVG perforated (sintetico).
+    // Carica bg-template.* (sfondo+logo già puliti, generati esternamente).
+    // Fallback: SVG perforato sintetico se manca il template.
     const dir = path.join(process.cwd(), "public", "brand-references");
     const files = await readdir(dir).catch(() => []);
     const tplName = files.find(f => /^bg-template\.(jpe?g|png|webp)$/i.test(f));
@@ -95,9 +95,9 @@ export async function POST(req: NextRequest) {
       ? await readFile(path.join(dir, tplName))
       : await buildPerforatedCanvas(W, H);
 
-    // Piatto al centro: sized per coprire la ciotola/piatto della template
-    const dishMaxW = Math.round(W * 0.75);
-    const dishMaxH = Math.round(H * 0.75);
+    // Piatto al centro: occupa max 70% area, posizionato sopra il logo (che è in basso al 90%)
+    const dishMaxW = Math.round(W * 0.70);
+    const dishMaxH = Math.round(H * 0.72);
     const dishResized = await sharp(dishFiltered)
       .resize({ width: dishMaxW, height: dishMaxH, fit: "inside" })
       .toBuffer();
@@ -105,8 +105,8 @@ export async function POST(req: NextRequest) {
     const dishW = dishMeta.width!;
     const dishH = dishMeta.height!;
     const dishLeft = Math.round((W - dishW) / 2);
-    // Centro verticale leggermente sopra (il logo del template sta in basso)
-    const dishTop = Math.round((H - dishH) / 2) - Math.round(H * 0.06);
+    // Posizionato verticalmente: leggermente sopra il centro per non coprire il logo
+    const dishTop = Math.round((H - dishH) / 2) - Math.round(H * 0.05);
 
     // Quando uso bg-template REALE, il logo del template è già nell'immagine: niente SVG logo.
     const composites: Array<{ input: Buffer; top: number; left: number }> = [
