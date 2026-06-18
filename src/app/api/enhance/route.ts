@@ -6,32 +6,31 @@ import sharp from "sharp";
 const MODEL = "gemini-2.5-flash-image";
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
-const ENHANCE_PROMPT = `EDIT THIS IMAGE — single image input.
+const ENHANCE_PROMPT = `BACKGROUND SWAP TASK — two images input.
 
-YOU RECEIVE EXACTLY ONE IMAGE: a photo of a dish. Edit ONLY this image.
+YOU RECEIVE 2 IMAGES IN ORDER:
+1. IMAGE 1 = THE BRAND TEMPLATE. Use ONLY its dark perforated background, lighting style, color grading, composition. IGNORE the food/object that is on it.
+2. IMAGE 2 = THE DISH SOURCE. Take ONLY the food/dish from this image.
 
-KEEP UNCHANGED:
-- The dish itself: every ingredient, every garnish, every shape, every color of the food. The dish must look exactly the same.
-- The exact same food. Do NOT swap, replace, or transform the dish into anything else.
+YOUR TASK:
+- Produce a NEW image where the food from IMAGE 2 sits on the EXACT SAME dark perforated background of IMAGE 1.
+- The background MUST be pixel-similar to IMAGE 1: same dark color, same perforated/dotted texture, same lighting direction (top-right warm light), same vignette, same matte black tones.
+- Keep IMAGE 2's food perfectly intact: same ingredients, same plating, same shape, same colors. Do NOT swap or alter the dish in any way.
 
-CHANGE ONLY THE STYLE around the dish:
-- Background: replace with a dark, slightly textured surface (deep matte black or very dark green-black). Style: professional restaurant table photography. Subtle perforated or grid-like pattern visible in soft focus.
-- Lighting: warm directional studio light from top-right, creating soft shadows on the lower-left of the dish. Golden-hour warmth (2800-3200K color temperature). The dish should be the brightest area of the image.
-- Color grading: rich saturated warm tones, deep blacks, no clipped highlights, slight teal in shadows. Premium food photography color palette.
-- Depth of field: dish in sharp focus, background softly blurred (f/2.8 look).
-- Composition: dish centered, slightly elevated angle (about 45° overhead), professional framing.
-- Polish: increase sharpness on the dish, add subtle vignette to focus eye on the food.
+CRITICAL RULES:
+- The food output MUST be the dish from IMAGE 2 — NEVER use the food/object from IMAGE 1.
+- The background output MUST match IMAGE 1's dark perforated surface — do not invent a new background.
+- Center the dish in the frame, slightly elevated camera angle (45° overhead).
+- Same warm lighting from top-right as IMAGE 1.
+- Sharp focus on dish, slight blur on background edges (depth of field).
+- Leave clean empty space at the bottom-center of the image (about 12% of the height) for a logo — do not add any logo yourself.
 
-DO NOT add any logo, watermark, or text. The logo will be added separately in a post-processing step.
-Leave clean empty space at the bottom-center of the image (about 12% of the height) — slightly darker, no garnish elements there.
+ABSOLUTE FORBIDDEN:
+- Do NOT add ingredients that are not in IMAGE 2.
+- Do NOT show the food from IMAGE 1 in any way (no meat, no potatoes, no plate from image 1).
+- Do NOT generate a different dish.
 
-ABSOLUTE RULES:
-- Output the SAME dish from the input image. Do NOT generate any other food.
-- Do NOT add ingredients (no meat, no vegetables, no garnishes that weren't in the original).
-- Do NOT remove ingredients.
-- Do NOT replace the dish with a different one.
-
-Output: ONE photorealistic image of THE SAME DISH from the input, re-styled with the background and lighting described above.`;
+Output: ONE photorealistic image — the dish from IMAGE 2 on the background of IMAGE 1, in the same brand photographic style.`;
 
 /** Carica tutte le foto di riferimento da public/brand-references/ */
 async function loadReferenceImages(): Promise<Array<{ mimeType: string; data: string }>> {
@@ -63,13 +62,16 @@ export async function POST(req: NextRequest) {
 
     const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
 
-    // SOLO la foto del piatto (NIENTE reference, evita che il modello sputi le ref).
-    // Lo stile è descritto solo nel prompt testuale.
-    console.log("Nano Banana: 1 target image, style described in prompt only");
+    // Carica UNA SOLA reference come "template di sfondo" + il piatto utente.
+    // Il prompt è esplicito su quale è quale e cosa estrarre da ciascuna.
+    const references = await loadReferenceImages();
+    const bgTemplate = references[0]; // prima reference = template sfondo
+    console.log(`Nano Banana: bg-template + 1 dish target (refs avail: ${references.length})`);
     const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [
       { text: ENHANCE_PROMPT },
-      { inlineData: { mimeType, data: cleanBase64 } },
     ];
+    if (bgTemplate) parts.push({ inlineData: bgTemplate });
+    parts.push({ inlineData: { mimeType, data: cleanBase64 } });
 
     const body = {
       contents: [{ role: "user", parts }],
