@@ -6,31 +6,41 @@ import sharp from "sharp";
 const MODEL = "gemini-2.5-flash-image";
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
-const ENHANCE_PROMPT = `BACKGROUND SWAP TASK — two images input.
+const ENHANCE_PROMPT = `BACKGROUND COPY + DISH PLACE — two images input.
 
-YOU RECEIVE 2 IMAGES IN ORDER:
-1. IMAGE 1 = THE BRAND TEMPLATE. Use ONLY its dark perforated background, lighting style, color grading, composition. IGNORE the food/object that is on it.
-2. IMAGE 2 = THE DISH SOURCE. Take ONLY the food/dish from this image.
+YOU RECEIVE 2 IMAGES:
+1. IMAGE 1 = THE BRAND BACKGROUND TEMPLATE. It shows a DARK PERFORATED METAL SURFACE (matte black with regularly-spaced round holes/dots in a uniform grid pattern, like a speaker grille or audio panel). On top of it there is also some food and a wooden cutting board — IGNORE the food.
+2. IMAGE 2 = THE DISH. Take only the food/dish from this image.
 
-YOUR TASK:
-- Produce a NEW image where the food from IMAGE 2 sits on the EXACT SAME dark perforated background of IMAGE 1.
-- The background MUST be pixel-similar to IMAGE 1: same dark color, same perforated/dotted texture, same lighting direction (top-right warm light), same vignette, same matte black tones.
-- Keep IMAGE 2's food perfectly intact: same ingredients, same plating, same shape, same colors. Do NOT swap or alter the dish in any way.
+═══════════════════════════════════════════════════════════════════
+THE OUTPUT MUST HAVE THESE NON-NEGOTIABLE VISUAL ELEMENTS:
+═══════════════════════════════════════════════════════════════════
 
-CRITICAL RULES:
-- The food output MUST be the dish from IMAGE 2 — NEVER use the food/object from IMAGE 1.
-- The background output MUST match IMAGE 1's dark perforated surface — do not invent a new background.
-- Center the dish in the frame, slightly elevated camera angle (45° overhead).
-- Same warm lighting from top-right as IMAGE 1.
-- Sharp focus on dish, slight blur on background edges (depth of field).
-- Leave clean empty space at the bottom-center of the image (about 12% of the height) for a logo — do not add any logo yourself.
+A) BACKGROUND: A LARGE DARK PERFORATED METAL SURFACE visible around the dish.
+   - Color: MATTE BLACK / very dark charcoal.
+   - Pattern: HUNDREDS of small round dots/perforations arranged in a regular grid (think: speaker grille, perforated steel sheet).
+   - Visible on AT LEAST all 4 edges of the image, taking up AT LEAST 30% of the total image area.
+   - This pattern is NOT optional — it MUST be clearly visible.
 
+B) DISH PLACEMENT:
+   - The dish from IMAGE 2 is placed at the CENTER, occupying AT MOST 60-65% of the image area.
+   - Use a wooden cutting board under the dish if visually appropriate.
+   - The dish must look EXACTLY like IMAGE 2 — same ingredients, same plating, same colors. Do not alter it.
+
+C) LIGHTING: warm directional studio light from top-right (golden hour, 2800-3200K). Soft shadows lower-left of dish.
+
+D) EMPTY BOTTOM AREA: leave the bottom-center 12% of the image as clean dark perforated surface (no dish, no garnish). This area will receive a logo in post-processing.
+
+═══════════════════════════════════════════════════════════════════
 ABSOLUTE FORBIDDEN:
-- Do NOT add ingredients that are not in IMAGE 2.
-- Do NOT show the food from IMAGE 1 in any way (no meat, no potatoes, no plate from image 1).
-- Do NOT generate a different dish.
+═══════════════════════════════════════════════════════════════════
+- Do NOT use a plain gray, white, beige, or smooth background. The perforated dark pattern is REQUIRED.
+- Do NOT let the dish fill the whole frame. ALWAYS leave perforated background visible around the dish.
+- Do NOT alter the dish from IMAGE 2 (no new ingredients, no different food).
+- Do NOT include the food/dish from IMAGE 1 in the output.
+- Do NOT add a logo yourself (we'll add it after).
 
-Output: ONE photorealistic image — the dish from IMAGE 2 on the background of IMAGE 1, in the same brand photographic style.`;
+Output: ONE photorealistic image, square 1:1, with the dish from IMAGE 2 placed centrally on a clearly visible DARK PERFORATED METAL background matching IMAGE 1.`;
 
 /** Carica tutte le foto di riferimento da public/brand-references/ */
 async function loadReferenceImages(): Promise<Array<{ mimeType: string; data: string }>> {
