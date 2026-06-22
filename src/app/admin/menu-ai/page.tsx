@@ -6,6 +6,30 @@ import { Send, ImagePlus, X, Check, Sparkles, Loader2, ChefHat, Wand2 } from "lu
 import { MENU_CATEGORIES } from "@/lib/menuData";
 import { addMenuItem } from "@/lib/menuRepo";
 
+/** Comprime un'immagine client-side prima di mandarla al server.
+ *  Necessario per foto da telefono (5-10MB → 500KB-1MB). */
+async function compressForUpload(dataUrl: string, maxDim = 1600, quality = 0.85): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const ratio = img.width / img.height;
+      let w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (ratio > 1) { w = maxDim; h = Math.round(maxDim / ratio); }
+        else { h = maxDim; w = Math.round(maxDim * ratio); }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("Canvas context error"));
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => reject(new Error("Image load error"));
+    img.src = dataUrl;
+  });
+}
+
 /** Background removal client-side via @imgly/background-removal (WASM).
  *  Modello "general" è meno aggressivo del default e PRESERVA le ombre naturali
  *  e il supporto (piatto, tagliere, bowl). Niente trim aggressivo. */
@@ -286,15 +310,20 @@ export default function AdminMenuAIPage() {
         }]);
 
         try {
+          // STEP 0: comprimi foto (foto da telefono = 5-10MB → max 1600px lato, ~500KB-1MB)
+          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 10, text: "Compressing photo for upload..." } : m));
+          const compressed = await compressForUpload(raw, 1600, 0.85);
+          console.log("[upload] raw:", Math.round(raw.length/1024), "KB compressed:", Math.round(compressed.length/1024), "KB");
+
           // STEP A: detect category PRIMA così OpenAI sceglie il supporto premium giusto
-          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 20, text: "Analyzing the dish to pick the right premium support..." } : m));
+          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 25, text: "Analyzing the dish to pick the right premium support..." } : m));
           let detectedCategory = "default";
           let detectName = "", detectIngr = "", detectConf = "low";
           try {
             const detectRes = await fetch("/api/detect-dish", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ imageBase64: raw, mimeType: "image/jpeg" }),
+              body: JSON.stringify({ imageBase64: compressed, mimeType: "image/jpeg" }),
             });
             const det = await detectRes.json();
             if (detectRes.ok && det.category) {
@@ -306,12 +335,11 @@ export default function AdminMenuAIPage() {
           } catch (e) { console.warn("Detect failed:", e); }
 
           // STEP B: OpenAI gpt-image-2 fa tutto il compositing professionale in 1 chiamata.
-          // (Niente più bg-removal client-side: OpenAI gestisce supporto + bg + logo + lighting.)
-          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 50, text: "OpenAI gpt-image-2 sta componendo la foto professionale..." } : m));
+          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 50, text: "OpenAI is composing the pro menu shot (~10s)..." } : m));
           const aiRes = await fetch("/api/enhance-openai", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ imageBase64: raw, category: detectedCategory, quality: "medium" }),
+            body: JSON.stringify({ imageBase64: compressed, category: detectedCategory, quality: "medium" }),
           });
           const aiData = await aiRes.json();
           if (!aiRes.ok || !aiData.imageDataUrl) throw new Error(aiData.error || "Compositing error");
