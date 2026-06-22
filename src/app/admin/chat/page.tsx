@@ -9,19 +9,19 @@ const CHAT_STORAGE_KEY = "padella_admin_chat";
 
 const INITIAL_CHAT: Message = {
   id: 0, role: "assistant", timestamp: new Date(),
-  text: "Ciao! 👋 Sono l'assistente AI di Padella Bangkok — alimentato da Gemini con accesso diretto al database.\n\nPosso DAVVERO modificare il sito:\n• **Menu**: aggiungere/modificare/eliminare piatti, cambiare prezzi, nascondere piatti dal menu\n• **Contatti & info**: WhatsApp, LINE, indirizzo, orari, tagline home\n• **Tema grafico**: cambiare il colore oro o verde del brand\n• **Sezioni homepage**: nascondere/mostrare Padel, Pool, Events, Gallery, Community\n\nDimmi quello che vuoi fare in italiano o inglese — capisco entrambi.",
+  text: "Hi! 👋 I'm the Padella Bangkok AI assistant — powered by Gemini with direct database access.\n\nI can ACTUALLY modify the site:\n• **Menu**: add/update/delete dishes, change prices, hide items\n• **Contacts & info**: WhatsApp, LINE, address, hours, home tagline\n• **Theme**: change the brand gold or green colors\n• **Homepage sections**: show/hide Padel, Pool, Gallery, Community\n\nTell me what you want to do — I always reply in English.",
 };
 
 type Role = "user" | "assistant";
 interface Message { id: number; role: Role; text: string; action?: string; timestamp: Date; }
 
 const SUGGESTIONS = [
-  "Mostrami tutti i piatti del menu",
-  "Cambia il prezzo della Pizza Margherita a 300 THB",
-  "Cambia il numero WhatsApp a +66 99 123 4567",
-  "Nascondi la sezione community dalla home",
-  "Cambia il colore oro in #D4B355",
-  "Aggiorna la tagline della home a 'Italian Soul, Bangkok Vibes'",
+  "Show me all menu items",
+  "Change the price of Pizza Margherita to 300 THB",
+  "Set WhatsApp number to +66 99 123 4567",
+  "Hide the community section from the home",
+  "Change the gold color to #D4B355",
+  "Update the home tagline to 'Italian Soul, Bangkok Vibes'",
 ];
 
 function parseCommand(input: string): { reply: string; action?: string } {

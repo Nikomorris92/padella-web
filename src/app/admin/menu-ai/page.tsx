@@ -150,7 +150,7 @@ function parseMenuCommand(text: string, pendingImg: string | null): Partial<Menu
 
 const INITIAL_MSG: Msg = {
   id: 0, role: "ai",
-  text: "Ciao! Sono il tuo assistente per creare nuovi piatti.\n\n**Come funziona:**\n1. Carica una foto del piatto 📷\n2. Scrivi nome, prezzo e categoria\n3. Applico il filtro brand automaticamente\n4. Confermi e il piatto entra nel menu\n\nInizia caricando una foto o scrivendo un comando.",
+  text: "Hi! I'm your assistant for creating new menu items.\n\n**How it works:**\n1. Upload a photo of the dish 📷\n2. AI detects category, name, ingredients\n3. OpenAI composes a professional photo with PADELLA branding\n4. Review the storytelling, send the price, and the dish is added\n\nStart by uploading a photo.",
 };
 
 const STORAGE_KEY = "padella_menu_ai_chat";
@@ -232,7 +232,7 @@ export default function AdminMenuAIPage() {
     setProcessingImg(true);
     setMsgs(prev => [...prev,
       { id: userMsgId, role: "user", text: `📷 ${f.name} (${sizeKB} KB)` },
-      { id: loadingMsgId, role: "ai", text: "Caricamento foto in corso...", uploadStage: "reading", uploadProgress: 0 },
+      { id: loadingMsgId, role: "ai", text: "Uploading photo...", uploadStage: "reading", uploadProgress: 0 },
     ]);
 
     // 2. Lettura file con progress reale
@@ -244,7 +244,7 @@ export default function AdminMenuAIPage() {
     };
     reader.onerror = () => {
       setMsgs(prev => prev.map(m => m.id === loadingMsgId
-        ? { ...m, uploadStage: "error", text: "Errore nella lettura del file." } : m));
+        ? { ...m, uploadStage: "error", text: "Error reading file." } : m));
       setProcessingImg(false);
     };
     reader.onload = async e => {
@@ -273,7 +273,7 @@ export default function AdminMenuAIPage() {
         setPendingProcessed(processed);
         setMsgs(prev => prev.map(m => m.id === loadingMsgId
           ? { ...m, uploadStage: "done", uploadProgress: 100,
-              text: `✅ **Foto caricata!** Filtro classico applicato.\n\n✨ Sto chiamando **Nano Banana AI** per migliorare la foto preservando il piatto...` }
+              text: `✅ **Photo uploaded!** Classic filter applied.\n\n✨ Now calling AI to compose the professional menu shot...` }
           : m
         ));
 
@@ -281,7 +281,7 @@ export default function AdminMenuAIPage() {
         const aiMsgId = Date.now() + 7;
         setMsgs(prev => [...prev, {
           id: aiMsgId, role: "ai",
-          text: "Estraggo il piatto dalla foto originale (pixel-perfect)...",
+          text: "Extracting dish from original photo (pixel-perfect)...",
           uploadStage: "filtering", uploadProgress: 20,
         }]);
 
@@ -314,7 +314,7 @@ export default function AdminMenuAIPage() {
             body: JSON.stringify({ imageBase64: raw, category: detectedCategory, quality: "medium" }),
           });
           const aiData = await aiRes.json();
-          if (!aiRes.ok || !aiData.imageDataUrl) throw new Error(aiData.error || "Errore compositing");
+          if (!aiRes.ok || !aiData.imageDataUrl) throw new Error(aiData.error || "Compositing error");
 
           setPendingProcessed(aiData.imageDataUrl);
           const confEmoji = detectConf === "high" ? "🟢" : detectConf === "medium" ? "🟡" : "🟠";
@@ -371,7 +371,7 @@ export default function AdminMenuAIPage() {
       } catch {
         clearInterval(progressTimer);
         setMsgs(prev => prev.map(m => m.id === loadingMsgId
-          ? { ...m, uploadStage: "error", text: "⚠️ Errore nell'applicazione del filtro. Riprova." }
+          ? { ...m, uploadStage: "error", text: "⚠️ Filter application error. Try again." }
           : m
         ));
       } finally {
@@ -433,19 +433,19 @@ export default function AdminMenuAIPage() {
       // Validation
       if (!pendingItem.name || !pendingItem.category || !pendingItem.price) {
         const missing: string[] = [];
-        if (!pendingItem.name) missing.push("**nome**");
-        if (!pendingItem.category) missing.push("**categoria**");
-        if (!pendingItem.price) missing.push("**prezzo**");
+        if (!pendingItem.name) missing.push("**name**");
+        if (!pendingItem.category) missing.push("**category**");
+        if (!pendingItem.price) missing.push("**price**");
         setMsgs(prev => [...prev, { id: Date.now(), role: "ai",
-          text: `⚠️ Manca ancora: ${missing.join(", ")}. Aggiungili prima di confermare.` }]);
+          text: `⚠️ Still missing: ${missing.join(", ")}. Please add them before confirming.` }]);
         setLoading(false); return;
       }
 
-      // Messaggio "salvataggio su Firebase..."
+      // Saving status
       const savingMsgId = Date.now();
       setMsgs(prev => [...prev, {
         id: savingMsgId, role: "ai",
-        text: "Salvataggio su Firebase in corso...",
+        text: "Saving to database...",
         uploadStage: "filtering", uploadProgress: 30,
       }]);
 
@@ -466,14 +466,14 @@ export default function AdminMenuAIPage() {
         setPendingItem(null); setPendingImg(null); setPendingProcessed(null);
         setMsgs(prev => prev.map(m => m.id === savingMsgId ? {
           ...m, uploadStage: "done", uploadProgress: 100,
-          text: `🎉 **${name}** salvato su Firebase!\n\nPrezzo: ${price} THB · Categoria: ${MENU_CATEGORIES.find(c=>c.id===category)?.label}\n\nÈ visibile in tempo reale su tutti i dispositivi.`,
+          text: `🎉 **${name}** saved successfully!\n\nPrice: ${price} THB · Category: ${MENU_CATEGORIES.find(c=>c.id===category)?.label}\n\nLive on the public menu now.`,
           card: item,
         } : m));
       } catch (err) {
         console.error("Errore Firebase:", err);
         setMsgs(prev => prev.map(m => m.id === savingMsgId ? {
           ...m, uploadStage: "error",
-          text: `⚠️ Errore nel salvataggio: ${err instanceof Error ? err.message : "controlla la connessione"}.`,
+          text: `⚠️ Save error: ${err instanceof Error ? err.message : "check connection"}.`,
         } : m));
       }
       setLoading(false); return;
@@ -492,23 +492,23 @@ export default function AdminMenuAIPage() {
       };
       setPendingItem(merged);
 
-      // Costruisci anteprima
+      // Build preview (English)
       const lines: string[] = [];
-      lines.push("📋 **Anteprima — verifica prima di confermare:**\n");
-      lines.push(`• **Nome**: ${merged.name ?? "—"}`);
-      lines.push(`• **Categoria**: ${merged.category ?? "—"}`);
-      lines.push(`• **Prezzo**: ${merged.price ? merged.price + " THB" : "—"}`);
-      lines.push(`• **Descrizione**: ${merged.description ?? "—"}`);
+      lines.push("📋 **Preview — please verify before confirming:**\n");
+      lines.push(`• **Name**: ${merged.name ?? "—"}`);
+      lines.push(`• **Category**: ${merged.category ?? "—"}`);
+      lines.push(`• **Price**: ${merged.price ? merged.price + " THB" : "—"}`);
+      lines.push(`• **Description**: ${merged.description ?? "—"}`);
 
       const missing: string[] = [];
-      if (!merged.name) missing.push("nome");
-      if (!merged.category) missing.push("categoria");
-      if (!merged.price) missing.push("prezzo");
+      if (!merged.name) missing.push("name");
+      if (!merged.category) missing.push("category");
+      if (!merged.price) missing.push("price");
 
       if (missing.length > 0) {
-        lines.push(`\n⚠️ Mancano: **${missing.join(", ")}**. Aggiungili e poi conferma.`);
+        lines.push(`\n⚠️ Missing: **${missing.join(", ")}**. Add them then confirm.`);
       } else {
-        lines.push(`\n✅ Tutti i campi sono compilati. Rispondi **"sì"** per salvare, o correggi qualcosa.`);
+        lines.push(`\n✅ All fields filled. Reply **"yes"** to save, or change something.`);
       }
 
       const card = merged.name && merged.category && merged.price
@@ -523,11 +523,11 @@ export default function AdminMenuAIPage() {
     if (intent === "cancel" && pendingItem) {
       setPendingItem(null); setPendingImg(null); setPendingProcessed(null);
       setMsgs(prev => [...prev, { id: Date.now(), role: "ai",
-        text: "❎ Annullato. Carica un'altra foto o riparti da capo." }]);
+        text: "❎ Cancelled. Upload another photo or start over." }]);
       setLoading(false); return;
     }
 
-    setMsgs(prev => [...prev, { id: Date.now(), role: "ai", text: "Carica una foto e poi scrivi il nome del piatto con prezzo e categoria.\n\nEsempio: *\"Spaghetti alle Vongole 360 THB pasta\"*" }]);
+    setMsgs(prev => [...prev, { id: Date.now(), role: "ai", text: "Upload a photo then write the dish name with price and category.\n\nExample: *\"Spaghetti alle Vongole 360 THB pasta\"*" }]);
     setLoading(false);
   };
 
