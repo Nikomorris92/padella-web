@@ -151,15 +151,15 @@ export default function AdminDailyPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="Nome del piatto *"
+                placeholder="Dish name *"
                 className="px-4 py-2.5 bg-[#0f1a14] border border-padella-cream/10 rounded-lg text-padella-cream text-sm placeholder-padella-cream/25 outline-none focus:border-padella-gold/40" />
               <input value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} type="number"
-                placeholder="Prezzo THB *"
+                placeholder="Price THB *"
                 className="px-4 py-2.5 bg-[#0f1a14] border border-padella-cream/10 rounded-lg text-padella-cream text-sm placeholder-padella-cream/25 outline-none focus:border-padella-gold/40" />
             </div>
 
             <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              placeholder="Descrizione breve"
+              placeholder="Short description"
               className="w-full px-4 py-2.5 bg-[#0f1a14] border border-padella-cream/10 rounded-lg text-padella-cream text-sm placeholder-padella-cream/25 outline-none focus:border-padella-gold/40" />
 
             <div className="grid grid-cols-2 gap-3">

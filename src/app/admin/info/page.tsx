@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Phone, MapPin, Clock, Globe, Check, Edit3, Mail, AlertCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-const DAYS = ["Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato","Domenica"];
+const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 
 interface Hours { open: string; close: string; closed: boolean; }
 
@@ -32,7 +32,7 @@ const DEFAULT: InfoState = {
   facebook: "Padella Bangkok",
   website: "www.padella.bkk",
   hours: Object.fromEntries(DAYS.map(d => [d, {
-    open: d === "Lunedì" ? "11:00" : "07:00",
+    open: d === "Monday" ? "11:00" : "07:00",
     close: "24:00",
     closed: false,
   }])),
@@ -136,9 +136,9 @@ export default function AdminInfoPage() {
   };
 
   const TABS = [
-    { id: "generale",  label: "Generale" },
-    { id: "contatti",  label: "Contatti" },
-    { id: "orari",     label: "Orari" },
+    { id: "generale",  label: "General" },
+    { id: "contatti",  label: "Contacts" },
+    { id: "orari",     label: "Hours" },
     { id: "social",    label: "Social & Web" },
   ] as const;
 
@@ -190,7 +190,7 @@ export default function AdminInfoPage() {
             <div className="bg-[#1a2e1f] border border-padella-cream/6 rounded-2xl p-5">
               <h3 className="text-padella-cream/60 text-xs font-semibold uppercase tracking-wide mb-3">Special notes</h3>
               <textarea value={info.note} onChange={e => setInfo(p => ({ ...p, note: e.target.value }))} rows={3}
-                placeholder="Es: Chiusi il giorno di Capodanno..."
+                placeholder="E.g.: Closed on Thai New Year, Christmas..."
                 className="w-full px-4 py-2.5 bg-[#0c1710] border border-padella-cream/10 rounded-xl text-padella-cream text-sm placeholder-padella-cream/20 outline-none focus:border-padella-gold/40 resize-none transition-colors" />
             </div>
           </motion.div>

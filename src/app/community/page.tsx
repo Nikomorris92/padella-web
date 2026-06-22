@@ -4,18 +4,14 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight, Check } from "lucide-react";
 
-const voices = [
-  { name: "Marco R.", role: "Padel Member", text: "Padella changed my Bangkok life. I play padel 3x a week, eat the best pasta in the city, and my whole social circle is now the Padella community.", avatar: "🇮🇹" },
-  { name: "Nadia K.", role: "Premium Member", text: "As an expat, finding a place that feels like home was priceless. The aperitivo Fridays are unmissable.", avatar: "🇫🇷" },
-  { name: "James T.", role: "Elite Member", text: "The padel courts are world-class. The instructors are brilliant. But honestly the post-match pasta is why I really keep coming back.", avatar: "🇬🇧" },
-  { name: "Yuki N.", role: "Community Member", text: "Sunday brunch at Padella is a ritual now. The food, the atmosphere, the people — it's perfect every single week.", avatar: "🇯🇵" },
-];
+// Live reviews come from Google Maps. Click the link below to read all real ones.
+const GOOGLE_REVIEWS_URL = "https://share.google/iurprWxebsgDmDMYG";
 
 const stats = [
-  { value: "200+", label: "Soci attivi" },
-  { value: "40+", label: "Nazionalità" },
-  { value: "3", label: "Anni di community" },
-  { value: "5★", label: "Google Rating" },
+  { value: "—", label: "Active Members" },
+  { value: "—", label: "Nationalities" },
+  { value: "New", label: "Just opened" },
+  { value: "★", label: "Google Rating", link: GOOGLE_REVIEWS_URL },
 ];
 
 export default function CommunityPage() {
@@ -42,7 +38,7 @@ export default function CommunityPage() {
             Join the<br /><span className="text-gradient-gold">Padella Family</span>
           </h1>
           <p className="text-padella-cream/55 max-w-2xl mx-auto text-lg leading-relaxed">
-            Padella è più di un ristorante. È una comunità di persone che amano il buon cibo, lo sport e lo stile di vita italiano — nel cuore di Bangkok.
+            Padella is more than a restaurant. It is a community of people who love great food, sport and the Italian lifestyle — in the heart of Bangkok.
           </p>
         </motion.div>
       </section>
@@ -63,7 +59,7 @@ export default function CommunityPage() {
       <section className="py-16 px-6">
         <div className="container-padella">
           <div className="text-center mb-10">
-            <h2 className="font-display font-bold text-padella-cream text-3xl">La Vita alla Padella</h2>
+            <h2 className="font-display font-bold text-padella-cream text-3xl">Life at Padella</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
@@ -85,27 +81,23 @@ export default function CommunityPage() {
         </div>
       </section>
 
-      {/* Testimonials */}
+      {/* Real Google Reviews — link out */}
       <section className="py-14 px-6 bg-[#0f1a14]">
-        <div className="container-padella">
-          <div className="text-center mb-8">
-            <h2 className="font-display font-semibold text-padella-cream text-2xl">La Community Parla</h2>
+        <div className="container-padella max-w-2xl mx-auto text-center">
+          <div className="inline-flex items-center gap-2 bg-padella-gold/10 border border-padella-gold/20 px-4 py-2 rounded-full mb-5">
+            <span className="text-padella-gold text-xs font-semibold tracking-[0.25em] uppercase">Reviews</span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
-            {voices.map((v, i) => (
-              <motion.div key={v.name} initial={{ opacity:0,y:14 }} whileInView={{ opacity:1,y:0 }} viewport={{ once:true }} transition={{ delay:i*0.08 }}
-                className="bg-[#1a2e1f] border border-padella-cream/6 rounded-2xl p-6">
-                <p className="text-padella-cream/65 text-sm leading-relaxed italic mb-4">&ldquo;{v.text}&rdquo;</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-padella-gold/15 border border-padella-gold/20 flex items-center justify-center text-lg">{v.avatar}</div>
-                  <div>
-                    <div className="text-padella-cream/80 text-xs font-semibold">{v.name}</div>
-                    <div className="text-padella-cream/30 text-[10px]">{v.role}</div>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+          <h2 className="font-display font-semibold text-padella-cream text-2xl mb-3">What our guests say on Google</h2>
+          <p className="text-padella-cream/55 text-sm leading-relaxed mb-7">
+            We just opened our doors. Real reviews from our first guests are published on Google Maps — check them out and leave yours after your visit.
+          </p>
+          <a
+            href={GOOGLE_REVIEWS_URL}
+            target="_blank" rel="noopener noreferrer"
+            className="btn-primary inline-flex items-center gap-2"
+          >
+            ⭐ Read & Write Reviews on Google
+          </a>
         </div>
       </section>
 
@@ -113,21 +105,21 @@ export default function CommunityPage() {
       <section className="py-16 px-6">
         <div className="container-padella max-w-xl mx-auto text-center">
           <div className="text-4xl mb-4">📬</div>
-          <h2 className="font-display font-bold text-padella-cream text-2xl mb-2">Resta Connesso</h2>
+          <h2 className="font-display font-bold text-padella-cream text-2xl mb-2">Stay Connected</h2>
           <p className="text-padella-cream/45 text-sm mb-6">Events, specials, stories and community news — directly to your inbox.</p>
 
           {submitted ? (
             <motion.div initial={{ opacity:0,scale:0.9 }} animate={{ opacity:1,scale:1 }}
               className="flex items-center justify-center gap-2 text-green-400 font-semibold">
-              <Check size={18} /> Iscritto! Benvenuto nella famiglia Padella 🎉
+              <Check size={18} /> Subscribed! Welcome to the Padella family 🎉
             </motion.div>
           ) : (
             <div className="flex flex-col sm:flex-row gap-2 mb-6">
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="la-tua@email.com"
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com"
                 onKeyDown={e => e.key === "Enter" && submit()}
                 className="flex-1 px-5 py-3 bg-[#1a2e1f] border border-padella-cream/10 rounded-full text-padella-cream placeholder-padella-cream/25 text-sm outline-none focus:border-padella-gold/40 transition-colors" />
               <button onClick={submit} className="btn-primary !py-3 !px-6 whitespace-nowrap">
-                Iscriviti <ArrowRight size={14} />
+                Subscribe <ArrowRight size={14} />
               </button>
             </div>
           )}
@@ -137,7 +129,7 @@ export default function CommunityPage() {
               💬 WhatsApp Community
             </a>
             <a href="https://line.me/ti/p/XXXXXXXX" target="_blank" rel="noopener noreferrer" className="btn-outline justify-center">
-              💚 Follow su LINE
+              💚 Follow on LINE
             </a>
           </div>
         </div>

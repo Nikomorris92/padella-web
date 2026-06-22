@@ -5,32 +5,32 @@ import { CheckCircle, Star, Crown, Zap } from "lucide-react";
 
 const plans = [
   {
-    icon: Zap, name: "Padella Pass", price: "1,500", period: "/mese",
+    icon: Zap, name: "Padella Pass", price: "1,500", period: "/month",
     color: "border-padella-cream/15", iconBg: "bg-padella-cream/10", iconColor: "text-padella-cream/60",
-    features: ["10% su cibo & drink", "Prenotazione prioritaria campi", "Newsletter mensile", "Accesso eventi members"],
+    features: ["10% off food & drinks", "Priority court bookings", "Monthly newsletter", "Members events access"],
     cta: "btn-outline", badge: null,
   },
   {
-    icon: Star, name: "Padella Premium", price: "3,500", period: "/mese",
+    icon: Star, name: "Padella Premium", price: "3,500", period: "/month",
     color: "border-padella-gold/35", iconBg: "bg-padella-gold/15", iconColor: "text-padella-gold",
-    features: ["20% su cibo & drink", "2 ore campo gratis/mese", "Aperitivo gratuito ogni venerdì", "Accesso eventi VIP", "1 ospite gratuito", "Early access novità menu"],
-    cta: "btn-primary", badge: "Più Popolare",
+    features: ["20% off food & drinks", "2 free court hours / month", "Free Friday aperitivo", "VIP events access", "1 free guest", "Early access to new menu"],
+    cta: "btn-primary", badge: "Most Popular",
   },
   {
-    icon: Crown, name: "Padella Elite", price: "8,000", period: "/mese",
+    icon: Crown, name: "Padella Elite", price: "8,000", period: "/month",
     color: "border-padella-terracotta/35", iconBg: "bg-padella-terracotta/15", iconColor: "text-padella-terracotta",
-    features: ["30% su tutto", "Accesso illimitato ai campi", "Chef's Table privato/mese", "Ospiti illimitati", "Evento di compleanno", "Servizio concierge", "Parcheggio riservato"],
+    features: ["30% off everything", "Unlimited court access", "Private Chef's Table / month", "Unlimited guests", "Birthday event", "Concierge service", "Reserved parking"],
     cta: "btn-outline", badge: "Best Value",
   },
 ];
 
 const perks = [
-  { emoji: "🎾", title: "Priorità Campi", desc: "I membri possono prenotare 7 giorni prima." },
-  { emoji: "🍝", title: "Sconti F&B", desc: "Fino al 30% su tutto il menu, tutto l'anno." },
-  { emoji: "🏆", title: "Tornei Esclusivi", desc: "Accesso ai tornei riservati ai soli soci." },
-  { emoji: "🍹", title: "Aperitivo Gratuito", desc: "Ogni venerdì sera — incluso nel Premium." },
-  { emoji: "🎵", title: "Accesso VIP", desc: "Ingresso prioritario agli eventi serali." },
-  { emoji: "🎁", title: "Birthday Perks", desc: "Cena gratuita e bottiglia di vino nel mese del compleanno." },
+  { emoji: "🎾", title: "Court Priority", desc: "Members can book courts 7 days in advance." },
+  { emoji: "🍝", title: "F&B Discounts", desc: "Up to 30% off the entire menu, all year round." },
+  { emoji: "🏆", title: "Exclusive Tournaments", desc: "Access to tournaments reserved for members only." },
+  { emoji: "🍹", title: "Free Aperitivo", desc: "Every Friday evening — included in Premium." },
+  { emoji: "🎵", title: "VIP Access", desc: "Priority entry to evening events." },
+  { emoji: "🎁", title: "Birthday Perks", desc: "Free dinner and a bottle of wine in your birthday month." },
 ];
 
 export default function MembershipPage() {
@@ -47,10 +47,10 @@ export default function MembershipPage() {
           </div>
           <h1 className="font-display font-bold text-padella-cream leading-none mb-5"
             style={{ fontSize:"clamp(3rem,9vw,7rem)", letterSpacing:"-0.03em" }}>
-            Diventa un<br /><span className="text-gradient-gold">Membro</span>
+            Become a<br /><span className="text-gradient-gold">Member</span>
           </h1>
           <p className="text-padella-cream/55 max-w-xl mx-auto text-lg leading-relaxed">
-            Benefici esclusivi, accesso prioritario, sconti tutto l&apos;anno e la migliore comunità italiana di Bangkok.
+            Exclusive benefits, priority access, year-round discounts and the best Italian community in Bangkok.
           </p>
         </motion.div>
       </section>

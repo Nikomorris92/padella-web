@@ -6,12 +6,12 @@ export default function OfficialLogo({
   className = "",
   priority = false,
 }: { size?: number; className?: string; priority?: boolean }) {
-  // Logo is approximately 3:2 aspect ratio (width:height)
+  // Transparent PNG, ratio ~1023x762 = 1.34
   const w = size;
-  const h = Math.round(size * 0.66);
+  const h = Math.round(size * 0.745);
   return (
     <Image
-      src="/FullLogo_NoBuffer.jpg"
+      src="/logo-clean.png"
       alt="Padella Bangkok"
       width={w}
       height={h}
