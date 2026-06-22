@@ -13,7 +13,8 @@ interface SiteConfigCtx {
 }
 
 const DEFAULTS: ConfigMap = {
-  whatsapp: "66XXXXXXXXX",
+  whatsapp: "+66 099 374 1930",
+  phone: "+66 063 486 4626",
   line_id: "@padellabangkok",
   tagline_home: "Play. Relax. Eat. Connect.",
   theme_gold: "#C9A84C",
@@ -22,7 +23,6 @@ const DEFAULTS: ConfigMap = {
   font_body: "Inter",
   show_section_padel: true,
   show_section_pool: true,
-  show_section_events: true,
   show_section_gallery: true,
   show_section_community: true,
   show_category_count: false,

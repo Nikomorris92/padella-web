@@ -57,9 +57,15 @@ export default function PadelPage() {
 
           <motion.div initial={{ opacity:0,y:16 }} animate={{ opacity:1,y:0 }} transition={{ delay:0.4 }}
             className="flex flex-wrap gap-4 justify-center">
-            <a href="https://wa.me/66XXXXXXXXX?text=Hi%20Padella!%20I'd%20like%20to%20book%20a%20padel%20court"
-              target="_blank" rel="noopener noreferrer" className="btn-primary group">
-              Book a Court <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+            <a
+              href="https://play.google.com/store/apps/details?id=com.krosspadel.bookandgo&hl=it"
+              target="_blank" rel="noopener noreferrer"
+              className="btn-primary group">
+              Download the Kross Padel App <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+            </a>
+            <a href="https://wa.me/66993741930?text=Hi%20Padella!%20I'd%20like%20to%20book%20a%20padel%20court"
+              target="_blank" rel="noopener noreferrer" className="btn-outline">
+              Book via WhatsApp
             </a>
             <Link href="/menu" className="btn-outline">View Menu</Link>
           </motion.div>
@@ -133,7 +139,7 @@ export default function PadelPage() {
                     </li>
                   ))}
                 </ul>
-                <a href={`https://wa.me/66XXXXXXXXX?text=Hi%20Padella!%20I'd%20like%20to%20book%20a%20${encodeURIComponent(p.title)}`}
+                <a href={`https://wa.me/66993741930?text=Hi%20Padella!%20I'd%20like%20to%20book%20a%20${encodeURIComponent(p.title)}`}
                   target="_blank" rel="noopener noreferrer"
                   className={p.popular ? "btn-primary w-full justify-center !text-sm !py-2.5" : "btn-outline w-full justify-center !text-sm !py-2.5"}>
                   Book Now
@@ -163,7 +169,7 @@ export default function PadelPage() {
             ))}
           </div>
           <div className="text-center mt-8">
-            <a href="https://wa.me/66XXXXXXXXX?text=Hi%20Padella!%20I'd%20like%20to%20book%20a%20padel%20court"
+            <a href="https://wa.me/66993741930?text=Hi%20Padella!%20I'd%20like%20to%20book%20a%20padel%20court"
               target="_blank" rel="noopener noreferrer" className="btn-primary">
               🎾 Book via WhatsApp
             </a>

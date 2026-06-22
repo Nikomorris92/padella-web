@@ -205,7 +205,7 @@ export default function HeroSection() {
             View Menu <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
           </Link>
           <a
-            href="https://wa.me/66XXXXXXXXX?text=Hi%20Padella!%20I'd%20like%20to%20book%20a%20table"
+            href="https://wa.me/66993741930?text=Hi%20Padella!%20I'd%20like%20to%20book%20a%20table"
             target="_blank" rel="noopener noreferrer"
             className="btn-outline group"
           >

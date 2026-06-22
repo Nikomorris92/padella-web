@@ -8,7 +8,6 @@ const footerLinks = {
     { href: "/menu", label: "Menu" },
     { href: "/padel", label: "Padel Club" },
     { href: "/pool", label: "Pool & Lounge" },
-    { href: "/events", label: "Events" },
     { href: "/gallery", label: "Gallery" },
   ],
   "Our Story": [
@@ -21,7 +20,6 @@ const footerLinks = {
   Visit: [
     { href: "/reservations", label: "Book a Table" },
     { href: "/padel#booking", label: "Book a Court" },
-    { href: "/events#calendar", label: "Event Calendar" },
     { href: "/contact", label: "Contact Us" },
     { href: "/faq", label: "FAQ" },
   ],

@@ -107,7 +107,7 @@ export default function MembershipPage() {
                     </li>
                   ))}
                 </ul>
-                <a href={`https://wa.me/66XXXXXXXXX?text=Hi%20Padella!%20I'd%20like%20to%20join%20${encodeURIComponent(p.name)}`}
+                <a href={`https://wa.me/66993741930?text=Hi%20Padella!%20I'd%20like%20to%20join%20${encodeURIComponent(p.name)}`}
                   target="_blank" rel="noopener noreferrer"
                   className={`${p.cta} justify-center !text-sm !py-3`}>
                   Inizia Ora

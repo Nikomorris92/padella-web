@@ -6,7 +6,7 @@ import QRCode from "react-qr-code";
 const QR_ITEMS = [
   { id: "menu", label: "Digital Menu QR", url: "https://padellabangkok.com/qr-menu", desc: "Place on tables — opens directly to menu" },
   { id: "review", label: "Google Review QR", url: "https://g.page/r/XXXXXXXX/review", desc: "Place at exit — opens Google review page" },
-  { id: "whatsapp", label: "WhatsApp QR", url: "https://wa.me/66XXXXXXXXX", desc: "Quick WhatsApp contact" },
+  { id: "whatsapp", label: "WhatsApp QR", url: "https://wa.me/66993741930", desc: "Quick WhatsApp contact" },
   { id: "reservation", label: "Reservation QR", url: "https://padellabangkok.com/reservations", desc: "Direct booking link" },
 ];
 

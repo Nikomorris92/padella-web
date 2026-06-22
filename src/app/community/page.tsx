@@ -133,7 +133,7 @@ export default function CommunityPage() {
           )}
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center mt-4">
-            <a href="https://wa.me/66XXXXXXXXX" target="_blank" rel="noopener noreferrer" className="btn-primary justify-center">
+            <a href="https://wa.me/66993741930" target="_blank" rel="noopener noreferrer" className="btn-primary justify-center">
               💬 WhatsApp Community
             </a>
             <a href="https://line.me/ti/p/XXXXXXXX" target="_blank" rel="noopener noreferrer" className="btn-outline justify-center">

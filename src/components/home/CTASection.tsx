@@ -30,14 +30,14 @@ export default function CTASection() {
 
           <div className="flex flex-wrap gap-4 justify-center">
             <a
-              href="https://wa.me/66XXXXXXXXX?text=Hi%20Padella!%20I'd%20like%20to%20make%20a%20reservation"
+              href="https://wa.me/66993741930?text=Hi%20Padella!%20I'd%20like%20to%20make%20a%20reservation"
               target="_blank" rel="noopener noreferrer"
               className="btn-primary text-base px-10 py-4"
             >
               📅 Book a Table
             </a>
             <a
-              href="https://wa.me/66XXXXXXXXX"
+              href="https://wa.me/66993741930"
               target="_blank" rel="noopener noreferrer"
               className="btn-outline text-base px-10 py-4"
             >

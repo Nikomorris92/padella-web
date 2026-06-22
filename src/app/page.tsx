@@ -2,7 +2,6 @@ import HeroSection from "@/components/home/HeroSection";
 import ManifestoSection from "@/components/home/ManifestoSection";
 import ExperiencesSection from "@/components/home/ExperiencesSection";
 import MenuPreview from "@/components/home/MenuPreview";
-import EventsPreview from "@/components/home/EventsPreview";
 import ReviewsSection from "@/components/home/ReviewsSection";
 import GalleryTeaser from "@/components/home/GalleryTeaser";
 import CTASection from "@/components/home/CTASection";
@@ -20,7 +19,6 @@ export default function HomePage() {
       <ManifestoSection />
       <ExperiencesSection />
       <MenuPreview />
-      <EventsPreview />
       <ReviewsSection />
       <GalleryTeaser />
       <CTASection />

@@ -81,7 +81,7 @@ export default function ReservationsPage() {
 
             {/* WhatsApp / LINE */}
             <div className="flex flex-col gap-2">
-              <a href={`https://wa.me/66XXXXXXXXX?text=${buildMsg()}`}
+              <a href={`https://wa.me/66993741930?text=${buildMsg()}`}
                 target="_blank" rel="noopener noreferrer"
                 className="btn-primary justify-center group">
                 💬 Book via WhatsApp <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />
@@ -131,8 +131,8 @@ export default function ReservationsPage() {
             <Phone size={16} className="text-padella-gold mb-3" />
             <div className="text-padella-cream font-semibold text-sm mb-1">Contact</div>
             <div className="text-padella-cream/45 text-xs space-y-1">
-              <div>📞 +66 XX XXXX XXXX</div>
-              <div>💬 WhatsApp: +66 XX XXXX XXXX</div>
+              <div>📞 +66 063 486 4626</div>
+              <div>💬 WhatsApp: +66 063 486 4626</div>
               <div>💚 LINE: @padella.bkk</div>
               <div>✉️ info@padella.bkk</div>
             </div>

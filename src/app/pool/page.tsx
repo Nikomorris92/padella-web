@@ -46,11 +46,11 @@ export default function PoolPage() {
 
           <motion.div initial={{ opacity:0,y:16 }} animate={{ opacity:1,y:0 }} transition={{ delay:0.4 }}
             className="flex flex-wrap gap-4 justify-center">
-            <a href="https://wa.me/66XXXXXXXXX?text=Hi%20Padella!%20I'd%20like%20to%20reserve%20a%20pool%20cabana"
+            <a href="https://wa.me/66993741930?text=Hi%20Padella!%20I'd%20like%20to%20reserve%20a%20pool%20cabana"
               target="_blank" rel="noopener noreferrer" className="btn-primary group">
               Reserve a Cabana <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
             </a>
-            <a href="https://wa.me/66XXXXXXXXX?text=Hi%20Padella!%20What%20are%20the%20pool%20hours?"
+            <a href="https://wa.me/66993741930?text=Hi%20Padella!%20What%20are%20the%20pool%20hours?"
               target="_blank" rel="noopener noreferrer" className="btn-outline">Pool Hours</a>
           </motion.div>
         </div>
@@ -113,7 +113,7 @@ export default function PoolPage() {
                     </li>
                   ))}
                 </ul>
-                <a href="https://wa.me/66XXXXXXXXX?text=Hi%20Padella!%20I'd%20like%20to%20reserve%20a%20cabana"
+                <a href="https://wa.me/66993741930?text=Hi%20Padella!%20I'd%20like%20to%20reserve%20a%20cabana"
                   target="_blank" rel="noopener noreferrer"
                   className={c.popular ? "btn-primary w-full justify-center !text-sm !py-2.5" : "btn-outline w-full justify-center !text-sm !py-2.5"}>
                   Reserve Now
@@ -129,7 +129,7 @@ export default function PoolPage() {
         <h2 className="font-display font-bold text-padella-cream text-2xl mb-3">Pool Access without Cabana</h2>
         <p className="text-padella-cream/50 text-sm mb-6 max-w-sm mx-auto">Day pass available — includes pool access and a welcome drink. Members get free access.</p>
         <div className="flex flex-wrap gap-3 justify-center">
-          <a href="https://wa.me/66XXXXXXXXX?text=Hi%20Padella!%20I'd%20like%20a%20pool%20day%20pass"
+          <a href="https://wa.me/66993741930?text=Hi%20Padella!%20I'd%20like%20a%20pool%20day%20pass"
             target="_blank" rel="noopener noreferrer" className="btn-primary">💬 Day Pass — 400 THB</a>
         </div>
       </section>

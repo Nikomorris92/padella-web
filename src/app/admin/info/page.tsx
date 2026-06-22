@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Phone, MapPin, Clock, Globe, Check, Edit3, Mail } from "lucide-react";
+import { Phone, MapPin, Clock, Globe, Check, Edit3, Mail, AlertCircle, Loader2 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 const DAYS = ["Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato","Domenica"];
 
@@ -23,9 +24,9 @@ const DEFAULT: InfoState = {
   address: "123 Sukhumvit Soi XX, Watthana",
   city: "Bangkok 10110",
   mapsUrl: "https://maps.google.com/?q=Padella+Bangkok",
-  whatsapp: "+66 XX XXXX XXXX",
+  whatsapp: "+66 099 374 1930",
   line: "@padella.bkk",
-  phone: "+66 XX XXXX XXXX",
+  phone: "+66 063 486 4626",
   email: "info@padella.bkk",
   instagram: "@padellabangkok",
   facebook: "Padella Bangkok",
@@ -35,7 +36,24 @@ const DEFAULT: InfoState = {
     close: "24:00",
     closed: false,
   }])),
-  note: "Chiusi il giorno di Capodanno Thai (Songkran) e Natale.",
+  note: "Closed on Thai New Year (Songkran) and Christmas.",
+};
+
+/** Mappa InfoState ↔ site_config keys */
+const KEY_MAP: Record<keyof Omit<InfoState, "hours">, string> = {
+  name: "restaurant_name",
+  tagline: "tagline_home",
+  address: "address",
+  city: "address_city",
+  mapsUrl: "maps_url",
+  whatsapp: "whatsapp",
+  line: "line_id",
+  phone: "phone",
+  email: "email",
+  instagram: "social_instagram",
+  facebook: "social_facebook",
+  website: "social_website",
+  note: "info_note",
 };
 
 function Field({ label, value, onChange, placeholder, icon: Icon, type="text" }:
@@ -54,13 +72,68 @@ function Field({ label, value, onChange, placeholder, icon: Icon, type="text" }:
 export default function AdminInfoPage() {
   const [info, setInfo] = useState<InfoState>(DEFAULT);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"generale"|"contatti"|"orari"|"social">("generale");
 
   const set = (key: keyof InfoState, val: string) => setInfo(p => ({ ...p, [key]: val }));
   const setHour = (day: string, field: keyof Hours, val: string | boolean) =>
     setInfo(p => ({ ...p, hours: { ...p.hours, [day]: { ...p.hours[day], [field]: val } } }));
 
-  const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2500); };
+  // Carica i valori reali dal database all'apertura
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data, error } = await supabase.from("site_config").select("key,value");
+        if (error) throw error;
+        const next = { ...DEFAULT };
+        for (const row of (data ?? []) as Array<{ key: string; value: unknown }>) {
+          // Map back from site_config keys to InfoState
+          for (const [stateKey, dbKey] of Object.entries(KEY_MAP)) {
+            if (row.key === dbKey && typeof row.value === "string") {
+              (next as Record<string, unknown>)[stateKey] = row.value;
+            }
+          }
+          if (row.key === "hours" && typeof row.value === "object" && row.value) {
+            next.hours = row.value as Record<string, Hours>;
+          }
+        }
+        setInfo(next);
+      } catch (e) {
+        console.warn("Errore caricamento info:", e);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  // Salvataggio REALE su Supabase
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      // Costruisco array di righe site_config da fare upsert
+      const rows: Array<{ key: string; value: unknown; updated_at: string }> = [];
+      const now = new Date().toISOString();
+      for (const [stateKey, dbKey] of Object.entries(KEY_MAP)) {
+        const v = (info as Record<string, unknown>)[stateKey];
+        rows.push({ key: dbKey, value: v, updated_at: now });
+      }
+      rows.push({ key: "hours", value: info.hours, updated_at: now });
+
+      const { error } = await supabase.from("site_config").upsert(rows as never);
+      if (error) throw error;
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      console.error("Salvataggio fallito:", err);
+      setSaveError(err instanceof Error ? err.message : "Update failed. The data was not saved.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const TABS = [
     { id: "generale",  label: "Generale" },
@@ -82,9 +155,9 @@ export default function AdminInfoPage() {
           <motion.button
             onClick={save} whileTap={{ scale: 0.95 }}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all ${
-              saved ? "bg-green-500 text-white" : "bg-padella-gold text-padella-green hover:bg-padella-gold/90"
-            }`}>
-            {saved ? <><Check size={14} /> Salvato!</> : <><Edit3 size={14} /> Salva</>}
+              saveError ? "bg-red-500 text-white" : saved ? "bg-green-500 text-white" : "bg-padella-gold text-padella-green hover:bg-padella-gold/90"
+            } ${saving ? "opacity-60 cursor-wait" : ""}`}>
+            {saving ? <><Loader2 size={14} className="animate-spin" /> Saving...</> : saveError ? <><AlertCircle size={14} /> Error</> : saved ? <><Check size={14} /> Saved!</> : <><Edit3 size={14} /> Save</>}
           </motion.button>
         </div>
 
@@ -128,9 +201,9 @@ export default function AdminInfoPage() {
           <motion.div initial={{ opacity:0,y:8 }} animate={{ opacity:1,y:0 }} className="space-y-4">
             <div className="bg-[#1a2e1f] border border-padella-cream/6 rounded-2xl p-5 space-y-4">
               <h3 className="text-padella-cream/60 text-xs font-semibold uppercase tracking-wide">Numeri & Contatti</h3>
-              <Field label="WhatsApp" value={info.whatsapp} onChange={v => set("whatsapp",v)} placeholder="+66 XX XXXX XXXX" icon={Phone} />
+              <Field label="WhatsApp" value={info.whatsapp} onChange={v => set("whatsapp",v)} placeholder="+66 063 486 4626" icon={Phone} />
               <Field label="LINE ID" value={info.line} onChange={v => set("line",v)} placeholder="@padella.bkk" />
-              <Field label="Telefono fisso" value={info.phone} onChange={v => set("phone",v)} placeholder="+66 XX XXXX XXXX" icon={Phone} />
+              <Field label="Telefono fisso" value={info.phone} onChange={v => set("phone",v)} placeholder="+66 063 486 4626" icon={Phone} />
               <Field label="Email" value={info.email} onChange={v => set("email",v)} placeholder="info@padella.bkk" icon={Mail} type="email" />
             </div>
             {/* Preview */}
@@ -212,9 +285,9 @@ export default function AdminInfoPage() {
         <motion.button
           onClick={save} whileTap={{ scale: 0.97 }}
           className={`w-full mt-6 py-3.5 rounded-2xl font-semibold text-sm transition-all ${
-            saved ? "bg-green-500 text-white" : "bg-padella-gold text-padella-green hover:bg-padella-gold/90"
-          }`}>
-          {saved ? "✅ Modifiche salvate!" : "Salva tutte le modifiche"}
+            saveError ? "bg-red-500 text-white" : saved ? "bg-green-500 text-white" : "bg-padella-gold text-padella-green hover:bg-padella-gold/90"
+          } ${saving ? "opacity-60 cursor-wait" : ""}`}>
+          {saving ? "⏳ Saving..." : saveError ? `⚠️ ${saveError}` : saved ? "✅ Changes saved successfully!" : "Save all changes"}
         </motion.button>
       </div>
     </div>

@@ -41,9 +41,9 @@ export default function FloatingCTA() {
               className="flex flex-col gap-2"
             >
               {[
-                { href: "https://wa.me/66XXXXXXXXX?text=Hi%20Padella!", icon: "💬", label: "WhatsApp", color: "bg-green-600 hover:bg-green-500" },
+                { href: "https://wa.me/66993741930?text=Hi%20Padella!", icon: "💬", label: "WhatsApp", color: "bg-green-600 hover:bg-green-500" },
                 { href: "https://line.me/ti/p/XXXXXXXX", icon: "💚", label: "LINE", color: "bg-[#00B900] hover:bg-[#00C900]" },
-                { href: "tel:+66XXXXXXXXX", icon: "📞", label: "Call Us", color: "bg-padella-terracotta hover:bg-padella-terracotta-light" },
+                { href: "tel:+66634864626", icon: "📞", label: "Call Us", color: "bg-padella-terracotta hover:bg-padella-terracotta-light" },
                 { href: "/reservations", icon: "📅", label: "Reserve", color: "bg-padella-gold hover:bg-padella-gold-light text-padella-green" },
               ].map((item, i) => (
                 <motion.a

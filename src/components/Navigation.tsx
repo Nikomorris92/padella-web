@@ -11,7 +11,6 @@ const links = [
   { href: "/menu", label: "Menu" },
   { href: "/padel", label: "Padel" },
   { href: "/pool", label: "Pool" },
-  { href: "/events", label: "Events" },
   { href: "/gallery", label: "Gallery" },
   { href: "/community", label: "Community" },
 ];
@@ -73,13 +72,13 @@ export default function Navigation() {
           {/* CTAs */}
           <div className="hidden lg:flex items-center gap-3">
             <a
-              href="https://wa.me/66XXXXXXXXX?text=Hi%20Padella!%20I'd%20like%20to%20make%20a%20reservation"
+              href="https://wa.me/66993741930?text=Hi%20Padella!%20I'd%20like%20to%20make%20a%20reservation"
               target="_blank" rel="noopener noreferrer"
               className="btn-outline !px-5 !py-2.5 !text-sm"
             >
               Book a Table
             </a>
-            <a href="tel:+66XXXXXXXXX" className="w-10 h-10 flex items-center justify-center rounded-full glass hover:bg-white/10 transition-all duration-200">
+            <a href="tel:+66634864626" className="w-10 h-10 flex items-center justify-center rounded-full glass hover:bg-white/10 transition-all duration-200">
               <Phone size={16} className="text-padella-cream/70" />
             </a>
           </div>
@@ -128,7 +127,7 @@ export default function Navigation() {
                 ))}
               </ul>
               <div className="flex flex-col gap-3 mt-8">
-                <a href="https://wa.me/66XXXXXXXXX" target="_blank" rel="noopener noreferrer"
+                <a href="https://wa.me/66993741930" target="_blank" rel="noopener noreferrer"
                   className="btn-primary justify-center">
                   📱 WhatsApp
                 </a>

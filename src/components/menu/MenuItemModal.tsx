@@ -153,14 +153,14 @@ export default function MenuItemModal({ item, onClose }: { item: MenuItem; onClo
           {/* CTAs */}
           <div className="pt-2 flex flex-col gap-2">
             <a
-              href={`https://wa.me/66XXXXXXXXX?text=Hi%20Padella!%20I'd%20like%20to%20order%20the%20${encodeURIComponent(item.name)}`}
+              href={`https://wa.me/66993741930?text=Hi%20Padella!%20I'd%20like%20to%20order%20the%20${encodeURIComponent(item.name)}`}
               target="_blank" rel="noopener noreferrer"
               className="btn-primary justify-center"
             >
               💬 Order via WhatsApp
             </a>
             <a
-              href="https://wa.me/66XXXXXXXXX?text=Hi%20Padella!%20I'd%20like%20to%20reserve%20a%20table"
+              href="https://wa.me/66993741930?text=Hi%20Padella!%20I'd%20like%20to%20reserve%20a%20table"
               target="_blank" rel="noopener noreferrer"
               className="btn-outline justify-center text-sm !py-3"
             >
