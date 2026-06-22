@@ -286,8 +286,8 @@ export default function AdminMenuAIPage() {
         }]);
 
         try {
-          // STEP A: detect category PRIMA così sappiamo quale supporto premium usare
-          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 20, text: "Analizzo il piatto per scegliere il supporto premium..." } : m));
+          // STEP A: detect category PRIMA così OpenAI sceglie il supporto premium giusto
+          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 20, text: "Analyzing the dish to pick the right premium support..." } : m));
           let detectedCategory = "default";
           let detectName = "", detectIngr = "", detectConf = "low";
           try {
@@ -305,16 +305,13 @@ export default function AdminMenuAIPage() {
             }
           } catch (e) { console.warn("Detect failed:", e); }
 
-          // STEP B: browser bg-removal sui PIXEL ORIGINALI (preserva ombre)
-          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 50, text: "Estraggo il piatto preservando i pixel originali..." } : m));
-          const dishPng = await removeBackgroundClient(raw);
-
-          // STEP C: server composita: bg-template + supporto premium (per categoria) + cibo
-          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 80, text: "Compongo su sfondo + supporto PADELLA..." } : m));
-          const aiRes = await fetch("/api/enhance", {
+          // STEP B: OpenAI gpt-image-2 fa tutto il compositing professionale in 1 chiamata.
+          // (Niente più bg-removal client-side: OpenAI gestisce supporto + bg + logo + lighting.)
+          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 50, text: "OpenAI gpt-image-2 sta componendo la foto professionale..." } : m));
+          const aiRes = await fetch("/api/enhance-openai", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ imageBase64: dishPng, category: detectedCategory }),
+            body: JSON.stringify({ imageBase64: raw, category: detectedCategory, quality: "medium" }),
           });
           const aiData = await aiRes.json();
           if (!aiRes.ok || !aiData.imageDataUrl) throw new Error(aiData.error || "Errore compositing");
