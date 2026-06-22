@@ -40,7 +40,12 @@ export async function POST(req: NextRequest) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: buildPrompt(name, category ?? "default", ingredients ?? "") }] }],
-        generationConfig: { temperature: 0.85, maxOutputTokens: 300 },
+        generationConfig: {
+          temperature: 0.85,
+          maxOutputTokens: 2000,
+          // Disable Gemini 2.5 "thinking" tokens so they don't consume the budget
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       }),
     });
 
