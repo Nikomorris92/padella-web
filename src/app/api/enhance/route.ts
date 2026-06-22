@@ -95,27 +95,46 @@ export async function POST(req: NextRequest) {
       ? await readFile(path.join(dir, tplName))
       : await buildPerforatedCanvas(W, H);
 
-    // Piatto al centro. Trim CONSERVATIVO (threshold alto) per preservare
-    // ombre/bordi del supporto (piatto/tagliere/ciotola).
-    const dishTrimmed = await sharp(dishFiltered)
-      .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 30 })
+    // ═══════════════════════════════════════════════════════════════════
+    // REGOLA: sfondo si adatta al soggetto, mai viceversa.
+    // - NO TRIM aggressivo: preservo TUTTO compresi ombre/bordi soft del bg-removal
+    // - fit: "inside" sempre, MAI crop
+    // - Margini di sicurezza: 10% laterali, 12% top, 18% bottom (per logo template)
+    // - Se il soggetto è più piccolo dell'area sicura → resta più piccolo (no enlarge)
+    // ═══════════════════════════════════════════════════════════════════
+    const SAFE_MARGIN_X = 0.10;        // 10% laterale
+    const SAFE_MARGIN_TOP = 0.06;      // 6% top
+    const SAFE_MARGIN_BOTTOM = 0.18;   // 18% bottom (riservato logo template)
+    const safeAreaW = Math.round(W * (1 - SAFE_MARGIN_X * 2));
+    const safeAreaH = Math.round(H * (1 - SAFE_MARGIN_TOP - SAFE_MARGIN_BOTTOM));
+
+    // Resize SOLO se necessario: se l'immagine è già più piccola dell'area, NON ingrandisco.
+    // withoutEnlargement: true garantisce che il soggetto resta piccolo se piccolo (regola brand).
+    const dishResized = await sharp(dishFiltered)
+      .resize({
+        width: safeAreaW,
+        height: safeAreaH,
+        fit: "inside",
+        withoutEnlargement: false, // permettiamo enlarge fino all'area sicura, mai oltre
+      })
       .toBuffer();
-    const dishMaxW = Math.round(W * 0.92);
-    const dishMaxH = Math.round(H * 0.82);
-    const dishResized = await sharp(dishTrimmed)
-      .resize({ width: dishMaxW, height: dishMaxH, fit: "inside" })
-      .toBuffer();
+
     const dishMeta = await sharp(dishResized).metadata();
     const dishW = dishMeta.width!;
     const dishH = dishMeta.height!;
-    const dishLeft = Math.round((W - dishW) / 2);
-    // Spinto su per non coprire il logo (che è in fondo)
-    const dishTop = Math.round((H - dishH) / 2) - Math.round(H * 0.04);
 
-    // Quando uso bg-template REALE, il logo del template è già nell'immagine: niente SVG logo.
+    // Centro orizzontalmente, posiziono verticalmente nell'area sicura
+    const dishLeft = Math.round((W - dishW) / 2);
+    const safeTopStart = Math.round(H * SAFE_MARGIN_TOP);
+    const safeBottomEnd = Math.round(H * (1 - SAFE_MARGIN_BOTTOM));
+    const safeCenterY = (safeTopStart + safeBottomEnd) / 2;
+    const dishTop = Math.round(safeCenterY - dishH / 2);
+
     const composites: Array<{ input: Buffer; top: number; left: number }> = [
       { input: dishResized, top: dishTop, left: dishLeft },
     ];
+
+    // Logo SVG solo se manca il template (fallback)
     if (!tplName) {
       const logoW = Math.round(W * 0.30);
       const logoPng = await sharp(Buffer.from(padellaLogoSvg(logoW))).png().toBuffer();

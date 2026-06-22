@@ -7,13 +7,18 @@ import { MENU_CATEGORIES } from "@/lib/menuData";
 import { addMenuItem } from "@/lib/menuRepo";
 
 /** Background removal client-side via @imgly/background-removal (WASM).
- *  PRESERVA i pixel originali del piatto (nessuna AI regeneration). */
+ *  Modello "general" è meno aggressivo del default e PRESERVA le ombre naturali
+ *  e il supporto (piatto, tagliere, bowl). Niente trim aggressivo. */
 async function removeBackgroundClient(dataUrl: string): Promise<string> {
   const { removeBackground } = await import("@imgly/background-removal");
-  // Riconverte dataURL → Blob
   const blob = await (await fetch(dataUrl)).blob();
   const resultBlob = await removeBackground(blob, {
     output: { format: "image/png", quality: 0.95 },
+    // Modello bilanciato: mantiene ombre/bordi soft (anti-halo / soft mask).
+    model: "isnet_fp16",
+    progress: (key: string, current: number, total: number) => {
+      if (key === "fetch:model" && current === total) console.log("[bg-removal] model loaded");
+    },
   });
   return await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
