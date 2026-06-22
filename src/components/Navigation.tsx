@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, Phone } from "lucide-react";
-import PadellaRacketLogo from "@/components/PadellaRacketLogo";
+import OfficialLogo from "@/components/OfficialLogo";
 
 const links = [
   { href: "/", label: "Home" },
@@ -45,15 +45,9 @@ export default function Navigation() {
 
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="relative">
-              <div className="text-padella-gold group-hover:scale-110 transition-transform duration-300">
-                <PadellaRacketLogo size={44} />
-              </div>
+            <div className="relative group-hover:scale-110 transition-transform duration-300">
+              <OfficialLogo size={72} priority />
               <div className="absolute -top-1 -right-1 w-3 h-3 bg-padella-terracotta rounded-full animate-pulse" />
-            </div>
-            <div className="hidden sm:block">
-              <div className="font-display font-semibold text-padella-cream text-lg leading-none tracking-wide">PADELLA</div>
-              <div className="text-padella-gold/70 text-[10px] tracking-[0.3em] uppercase leading-none mt-0.5">Bangkok</div>
             </div>
           </Link>
 
