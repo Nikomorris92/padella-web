@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import OfficialLogo from "@/components/OfficialLogo";
 
 const slides = [
   { word: "PLAY.",    sub: "World-class padel courts under the Bangkok sky",    color: "from-[#1B3A2D] via-[#1B3A2D] to-[#0f2419]" },
@@ -88,63 +89,21 @@ export default function HeroSection() {
       {/* Radial gold glow */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_40%,rgba(201,168,76,0.07),transparent)]" />
 
-      {/* ── GIANT RACKET right side — parallax on scroll ── */}
-      <motion.div
-        style={{ y: racketY, rotate: racketRotate, opacity: racketOpacity }}
-        className="absolute right-[-80px] top-[2%] w-[300px] md:w-[420px] lg:w-[520px] pointer-events-none select-none z-0"
-      >
-        <PadelRacket className="w-full text-padella-gold" />
-      </motion.div>
-
-      {/* ── SMALL RACKET left — floating ambient ── */}
-      <motion.div
-        animate={{ rotate: [-12, 0, -12], y: [0, -14, 0] }}
-        transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute left-[-24px] bottom-[12%] w-[140px] md:w-[190px] pointer-events-none select-none z-0 opacity-[0.15]"
-      >
-        <PadelRacket className="w-full text-padella-cream" />
-      </motion.div>
+      {/* Ambient decorative elements removed — official logo is the only brand mark */}
 
       {/* ── MAIN CONTENT ── */}
       <div className="container-padella relative z-10 text-center px-6">
 
-        {/* ── PADELLA wordmark row: flag | name | racket ── */}
+        {/* ── Official PADELLA brand logo ── */}
         <motion.div
-          initial={{ opacity: 0, y: -30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
-          className="flex items-center justify-center gap-4 md:gap-6 mb-2"
+          initial={{ opacity: 0, y: -30, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.9, ease: [0.4, 0, 0.2, 1] }}
+          className="flex items-center justify-center mb-2"
         >
-          {/* Italian flag — vertical stripes */}
-          <motion.div
-            initial={{ scaleY: 0, opacity: 0 }}
-            animate={{ scaleY: 1, opacity: 1 }}
-            transition={{ delay: 0.4, duration: 0.6, ease: "easeOut" }}
-            className="flex flex-col gap-1 origin-top"
-            style={{ height: "clamp(36px, 7vw, 80px)" }}
-          >
-            <div className="flex-1 w-2 rounded-full bg-[#009246]" />
-            <div className="flex-1 w-2 rounded-full bg-[#f0f0f0]" />
-            <div className="flex-1 w-2 rounded-full bg-[#CE2B37]" />
-          </motion.div>
-
-          {/* PADELLA */}
-          <h1
-            className="font-display font-bold leading-none"
-            style={{ fontSize: "clamp(3.8rem, 14vw, 10.5rem)", letterSpacing: "-0.04em" }}
-          >
-            <span className="text-gradient-gold">PADELLA</span>
-          </h1>
-
-          {/* Inline racket icon */}
-          <motion.div
-            initial={{ opacity: 0, rotate: -30 }}
-            animate={{ opacity: 0.75, rotate: -8 }}
-            transition={{ delay: 0.5, duration: 0.7, ease: "easeOut" }}
-            style={{ width: "clamp(28px, 4.5vw, 60px)", flexShrink: 0 }}
-          >
-            <PadelRacket className="w-full text-padella-gold" />
-          </motion.div>
+          <div style={{ width: "clamp(280px, 60vw, 640px)" }}>
+            <OfficialLogo size={640} priority className="w-full h-auto" />
+          </div>
         </motion.div>
 
         {/* Location line with flag accents */}
