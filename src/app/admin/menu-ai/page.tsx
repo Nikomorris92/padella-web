@@ -320,38 +320,53 @@ export default function AdminMenuAIPage() {
           const confEmoji = detectConf === "high" ? "🟢" : detectConf === "medium" ? "🟡" : "🟠";
           setMsgs(prev => prev.map(m => m.id === aiMsgId ? {
             ...m, uploadStage: "done", uploadProgress: 100,
-            text: `🎨 **Foto pronta!**\n\n${confEmoji} **Categoria rilevata**: ${detectedCategory}\n• **Nome suggerito**: ${detectName || "—"}\n• **Ingredienti**: ${detectIngr || "—"}\n\nSe va bene, scrivi il **prezzo** (es. "320 THB") e confermo.`,
+            text: `🎨 **Photo ready!**\n\n${confEmoji} **Detected category**: ${detectedCategory}\n• **Suggested name**: ${detectName || "—"}\n• **Visible ingredients**: ${detectIngr || "—"}\n\nGenerating storytelling...`,
             img: aiData.imageDataUrl,
           } : m));
 
-          // Pre-popola pendingItem
-          if (detectedCategory !== "default") {
-            setPendingItem({
-              category: detectedCategory,
-              name: detectName,
-              description: detectIngr,
-              img: aiData.imageDataUrl,
-            });
-          }
-
-          // Unused try-catch removed: detect logic moved up
+          // STEP D: genera storytelling in inglese (sempre) per il piatto
+          let generatedStory = "";
           try {
-            // (kept for backward compatibility — no-op)
-            void 0;
-          } catch (detErr) {
-            console.warn("Detect dish failed:", detErr);
+            const storyRes = await fetch("/api/generate-story", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name: detectName || "this dish",
+                category: detectedCategory,
+                ingredients: detectIngr,
+              }),
+            });
+            const sData = await storyRes.json();
+            if (storyRes.ok) generatedStory = sData.story || "";
+          } catch (e) { console.warn("Story generation failed:", e); }
+
+          // Pre-popola pendingItem con story incluso
+          setPendingItem({
+            category: detectedCategory !== "default" ? detectedCategory : "starter",
+            name: detectName,
+            description: detectIngr,
+            story: generatedStory,
+            img: aiData.imageDataUrl,
+          });
+
+          // Mostra anteprima editabile dello storytelling
+          if (generatedStory) {
             setMsgs(prev => [...prev, {
-              id: Date.now() + 8, role: "ai",
-              text: "Non sono riuscito a riconoscere il piatto in automatico. Scrivi tu nome, prezzo, categoria.\nEsempio: *\"Pizza Margherita 280 THB pizza\"*",
+              id: Date.now() + 9, role: "ai",
+              text: `📖 **Storytelling preview** (4 lines, English):\n\n_${generatedStory.split("\n").join("_\n_")}_\n\n✏️ To **edit**: write *"story: <your new text>"*.\n💰 Otherwise, send the **price** (e.g. "320 THB") and I'll confirm.`,
+            }]);
+          } else {
+            setMsgs(prev => [...prev, {
+              id: Date.now() + 9, role: "ai",
+              text: `💰 Send the **price** (e.g. "320 THB") to confirm and save.`,
             }]);
           }
         } catch (aiErr) {
           console.error("AI enhance failed:", aiErr);
           setMsgs(prev => prev.map(m => m.id === aiMsgId ? {
             ...m, uploadStage: "error",
-            text: `⚠️ AI non disponibile (uso il filtro classico).\nDettaglio: ${aiErr instanceof Error ? aiErr.message : "unknown"}`,
+            text: `⚠️ AI unavailable. Detail: ${aiErr instanceof Error ? aiErr.message : "unknown"}`,
           } : m));
-          // pendingProcessed resta la versione canvas — funziona comunque
         }
       } catch {
         clearInterval(progressTimer);
@@ -372,6 +387,17 @@ export default function AdminMenuAIPage() {
     setInput("");
     setMsgs(prev => [...prev, { id: Date.now(), role: "user", text: val }]);
     setLoading(true);
+
+    // === COMANDO "story: <testo>" — modifica diretta storytelling ===
+    if (pendingItem && /^story\s*[:=]/i.test(val)) {
+      const newStory = val.replace(/^story\s*[:=]\s*/i, "").trim();
+      setPendingItem(p => ({ ...p, story: newStory }));
+      setMsgs(prev => [...prev, {
+        id: Date.now(), role: "ai",
+        text: `✏️ **Story updated.**\n\n_${newStory.split("\n").join("_\n_")}_\n\nSend the **price** (e.g. "320 THB") to confirm.`,
+      }]);
+      setLoading(false); return;
+    }
 
     // === PARSING INTELLIGENTE con Gemini ===
     let intent: string = "unclear";
