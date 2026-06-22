@@ -286,50 +286,61 @@ export default function AdminMenuAIPage() {
         }]);
 
         try {
-          // Browser rimuove sfondo dai pixel ORIGINALI (no AI redraw)
-          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 40 } : m));
-          const dishPng = await removeBackgroundClient(raw);
-          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 70 } : m));
-
-          // Server composita il piatto trasparente su template brand
-          const aiRes = await fetch("/api/enhance", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ imageBase64: dishPng, mimeType: "image/png" }),
-          });
-          const aiData = await aiRes.json();
-          if (!aiRes.ok || !aiData.imageDataUrl) throw new Error(aiData.error || "Errore compositing");
-
-          // Sostituisco pendingProcessed con la versione AI (usata poi per il salvataggio)
-          setPendingProcessed(aiData.imageDataUrl);
-          setMsgs(prev => prev.map(m => m.id === aiMsgId ? {
-            ...m, uploadStage: "done", uploadProgress: 100,
-            text: `🎨 **Nano Banana ha migliorato la foto!**\n\nLuce calda, sfondo elegante, dettagli pro.\n\n🔍 Sto analizzando il piatto per riconoscerlo...`,
-            img: aiData.imageDataUrl,
-          } : m));
-
-          // STEP 3: detect dish category + name + ingredients via Gemini Vision
+          // STEP A: detect category PRIMA così sappiamo quale supporto premium usare
+          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 20, text: "Analizzo il piatto per scegliere il supporto premium..." } : m));
+          let detectedCategory = "default";
+          let detectName = "", detectIngr = "", detectConf = "low";
           try {
             const detectRes = await fetch("/api/detect-dish", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ imageBase64: aiData.imageDataUrl, mimeType: "image/jpeg" }),
+              body: JSON.stringify({ imageBase64: raw, mimeType: "image/jpeg" }),
             });
             const det = await detectRes.json();
             if (detectRes.ok && det.category) {
-              // Pre-popola il pending item con i suggerimenti
-              setPendingItem({
-                category: det.category,
-                name: det.suggested_name || "",
-                description: det.visible_ingredients || "",
-                img: aiData.imageDataUrl,
-              });
-              const confEmoji = det.confidence === "high" ? "🟢" : det.confidence === "medium" ? "🟡" : "🟠";
-              setMsgs(prev => [...prev, {
-                id: Date.now() + 8, role: "ai",
-                text: `${confEmoji} **Ho riconosciuto il piatto:**\n\n• **Categoria**: ${det.category}\n• **Nome suggerito**: ${det.suggested_name || "—"}\n• **Ingredienti visibili**: ${det.visible_ingredients || "—"}\n• **Confidenza**: ${det.confidence}\n\nSe ti va bene, scrivi il **prezzo** (es. "320 THB") e confermo.\nAltrimenti correggi: *"nome Pizza Margherita"*, *"categoria pizza"*, ecc.`,
-              }]);
+              detectedCategory = det.category;
+              detectName = det.suggested_name || "";
+              detectIngr = det.visible_ingredients || "";
+              detectConf = det.confidence || "low";
             }
+          } catch (e) { console.warn("Detect failed:", e); }
+
+          // STEP B: browser bg-removal sui PIXEL ORIGINALI (preserva ombre)
+          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 50, text: "Estraggo il piatto preservando i pixel originali..." } : m));
+          const dishPng = await removeBackgroundClient(raw);
+
+          // STEP C: server composita: bg-template + supporto premium (per categoria) + cibo
+          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 80, text: "Compongo su sfondo + supporto PADELLA..." } : m));
+          const aiRes = await fetch("/api/enhance", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ imageBase64: dishPng, category: detectedCategory }),
+          });
+          const aiData = await aiRes.json();
+          if (!aiRes.ok || !aiData.imageDataUrl) throw new Error(aiData.error || "Errore compositing");
+
+          setPendingProcessed(aiData.imageDataUrl);
+          const confEmoji = detectConf === "high" ? "🟢" : detectConf === "medium" ? "🟡" : "🟠";
+          setMsgs(prev => prev.map(m => m.id === aiMsgId ? {
+            ...m, uploadStage: "done", uploadProgress: 100,
+            text: `🎨 **Foto pronta!**\n\n${confEmoji} **Categoria rilevata**: ${detectedCategory}\n• **Nome suggerito**: ${detectName || "—"}\n• **Ingredienti**: ${detectIngr || "—"}\n\nSe va bene, scrivi il **prezzo** (es. "320 THB") e confermo.`,
+            img: aiData.imageDataUrl,
+          } : m));
+
+          // Pre-popola pendingItem
+          if (detectedCategory !== "default") {
+            setPendingItem({
+              category: detectedCategory,
+              name: detectName,
+              description: detectIngr,
+              img: aiData.imageDataUrl,
+            });
+          }
+
+          // Unused try-catch removed: detect logic moved up
+          try {
+            // (kept for backward compatibility — no-op)
+            void 0;
           } catch (detErr) {
             console.warn("Detect dish failed:", detErr);
             setMsgs(prev => [...prev, {

@@ -3,6 +3,7 @@ import { readFile, readdir } from "fs/promises";
 import path from "path";
 import sharp from "sharp";
 import { padellaLogoSvg } from "@/lib/padellaLogo";
+import { generateSupportSvg, categoryToSupport, type SupportCategory } from "@/lib/premiumSupports";
 
 export const maxDuration = 30;
 export const runtime = "nodejs";
@@ -69,7 +70,8 @@ async function applyBrandFilter(dishBuf: Buffer): Promise<Buffer> {
 
 export async function POST(req: NextRequest) {
   try {
-    const { imageBase64 } = await req.json();
+    const body = await req.json() as { imageBase64?: string; category?: string };
+    const { imageBase64, category: requestedCategory } = body;
     if (!imageBase64) return NextResponse.json({ error: "Missing imageBase64" }, { status: 400 });
 
     // Il client ha già fatto background removal → riceve PNG con alpha trasparente
@@ -79,6 +81,10 @@ export async function POST(req: NextRequest) {
     // Applica filtro brand (preservando pixel originali)
     console.log("Sharp: applico filtro brand + compositing");
     const dishFiltered = await applyBrandFilter(dishBuf);
+
+    // Determina la categoria → quale supporto premium usare sotto al cibo
+    const supportCat: SupportCategory = categoryToSupport(requestedCategory ?? "default");
+    console.log(`Premium support: ${supportCat}`);
 
     // Carica reference per dimensioni
     const refBuf = await loadBackgroundReference();
@@ -130,7 +136,24 @@ export async function POST(req: NextRequest) {
     const safeCenterY = (safeTopStart + safeBottomEnd) / 2;
     const dishTop = Math.round(safeCenterY - dishH / 2);
 
+    // ─── PREMIUM SUPPORT layer (sotto al cibo) ───
+    // Genera un supporto SVG (tagliere/bowl/piatto/coaster) in base alla categoria.
+    // Cerca prima un PNG custom in public/brand-references/supports/{cat}.png
+    const supportsDir = path.join(dir, "supports");
+    const supportFiles = await readdir(supportsDir).catch(() => []);
+    const customSupport = supportFiles.find(f => f.startsWith(supportCat + ".") || f.startsWith(supportCat + "-"));
+    let supportPng: Buffer;
+    if (customSupport) {
+      supportPng = await sharp(await readFile(path.join(supportsDir, customSupport)))
+        .resize({ width: W, height: H, fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .png()
+        .toBuffer();
+    } else {
+      supportPng = await sharp(Buffer.from(generateSupportSvg(supportCat, W, H))).png().toBuffer();
+    }
+
     const composites: Array<{ input: Buffer; top: number; left: number }> = [
+      { input: supportPng, top: 0, left: 0 },
       { input: dishResized, top: dishTop, left: dishLeft },
     ];
 
