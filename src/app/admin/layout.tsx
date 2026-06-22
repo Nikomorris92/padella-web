@@ -8,13 +8,13 @@ import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
 
 const NAV = [
-  { href: "/admin",          label: "Dashboard",       icon: BarChart2,     sub: "Statistiche & analytics" },
-  { href: "/admin/chat",     label: "Chat AI",         icon: Sparkles,      sub: "Gestione rapida",  gold: true },
-  { href: "/admin/menu-ai",  label: "Crea Menu",       icon: ChefHat,       sub: "Aggiungi piatti AI" },
-  { href: "/admin/daily",    label: "Menu del Giorno", icon: Calendar,      sub: "Speciale oggi" },
-  { href: "/admin/photos",   label: "Photo Studio AI", icon: Camera,        sub: "Filtro & sfondo" },
-  { href: "/admin/info",     label: "Modifica Info",   icon: Info,          sub: "Contatti & orari" },
-  { href: "/admin/qr",       label: "QR Codes",        icon: QrCode,        sub: "Genera & stampa" },
+  { href: "/admin",          label: "Dashboard",       icon: BarChart2,     sub: "Statistics & analytics" },
+  { href: "/admin/chat",     label: "Chat AI",         icon: Sparkles,      sub: "Quick management",  gold: true },
+  { href: "/admin/menu-ai",  label: "Crea Menu",       icon: ChefHat,       sub: "Add dishes AI" },
+  { href: "/admin/daily",    label: "Daily Menu", icon: Calendar,      sub: "Today special" },
+  { href: "/admin/photos",   label: "Photo Studio AI", icon: Camera,        sub: "Filter & background" },
+  { href: "/admin/info",     label: "Edit Info",   icon: Info,          sub: "Contacts & hours" },
+  { href: "/admin/qr",       label: "QR Codes",        icon: QrCode,        sub: "Generate & print" },
 ] as const;
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -69,7 +69,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* Status dot */}
           <div className="flex items-center gap-2 mt-4">
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-            <span className="text-green-400/70 text-[10px] tracking-wide">Sistema Online</span>
+            <span className="text-green-400/70 text-[10px] tracking-wide">System Online</span>
           </div>
         </div>
 
@@ -108,7 +108,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-padella-cream/5 space-y-2">
           <Link href="/" className="flex items-center gap-2 text-padella-cream/30 hover:text-padella-cream/60 transition-colors text-xs">
             <LogOut size={13} />
-            Torna al sito
+            Back to site
           </Link>
           <button onClick={logout} className="flex items-center gap-2 text-red-400/50 hover:text-red-400 transition-colors text-xs">
             <LogOut size={13} />
@@ -129,7 +129,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link
             href="/"
             className="ml-auto flex items-center justify-center w-9 h-9 rounded-full bg-padella-gold border-2 border-padella-gold hover:scale-110 active:scale-95 transition-all shadow-lg"
-            title="Torna al sito"
+            title="Back to site"
           >
             <span className="text-padella-green font-display font-bold text-base leading-none select-none">W</span>
           </Link>
@@ -139,7 +139,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <Link
           href="/"
           className="hidden lg:flex fixed top-4 right-4 z-50 items-center justify-center w-11 h-11 rounded-full bg-padella-gold border-2 border-padella-gold hover:scale-110 active:scale-95 transition-all shadow-xl"
-          title="Torna al sito pubblico"
+          title="Back to site pubblico"
         >
           <span className="text-padella-green font-display font-bold text-lg leading-none select-none">W</span>
         </Link>

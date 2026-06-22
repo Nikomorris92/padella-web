@@ -548,8 +548,8 @@ export default function AdminMenuAIPage() {
             <Sparkles size={15} className="text-padella-gold" />
           </div>
           <div>
-            <div className="text-padella-cream text-sm font-semibold">Crea Menu AI</div>
-            <div className="text-padella-cream/30 text-[10px]">Carica foto · Descrivi il piatto · Pubblica</div>
+            <div className="text-padella-cream text-sm font-semibold">Create Menu AI</div>
+            <div className="text-padella-cream/30 text-[10px]">Upload photo · Describe dish · Publish</div>
           </div>
           {processingImg && (
             <div className="ml-auto flex items-center gap-2 text-padella-gold/70 text-xs">

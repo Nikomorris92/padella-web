@@ -220,9 +220,9 @@ export default function AdminChatPage() {
           </div>
           <button
             type="button"
-            onClick={() => { if (confirm("Cancellare tutto lo storico chat?")) clearHistory(); }}
+            onClick={() => { if (confirm("Clear all chat history?")) clearHistory(); }}
             className="w-9 h-9 rounded-xl bg-padella-cream/5 hover:bg-red-500/15 flex items-center justify-center transition-colors active:scale-95"
-            title="Cancella storico"
+            title="Clear history"
             style={{ touchAction: "manipulation" }}
           >
             <Trash2 size={14} className="text-padella-cream/40 hover:text-red-400" />
@@ -303,7 +303,7 @@ export default function AdminChatPage() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === "Enter" && send()}
-            placeholder="Scrivi un comando... es: 'Aggiungi pizza funghi 280 THB'"
+            placeholder="Write a command... es: 'Add pizza funghi 280 THB'"
             className="flex-1 bg-transparent text-padella-cream placeholder-padella-cream/25 text-sm outline-none min-h-[44px]"
           />
           <button
