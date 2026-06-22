@@ -92,7 +92,7 @@ export default function AdminInfoPage() {
           // Map back from site_config keys to InfoState
           for (const [stateKey, dbKey] of Object.entries(KEY_MAP)) {
             if (row.key === dbKey && typeof row.value === "string") {
-              (next as Record<string, unknown>)[stateKey] = row.value;
+              (next as unknown as Record<string, unknown>)[stateKey] = row.value;
             }
           }
           if (row.key === "hours" && typeof row.value === "object" && row.value) {
@@ -117,9 +117,9 @@ export default function AdminInfoPage() {
       // Costruisco array di righe site_config da fare upsert
       const rows: Array<{ key: string; value: unknown; updated_at: string }> = [];
       const now = new Date().toISOString();
+      const infoRec = info as unknown as Record<string, unknown>;
       for (const [stateKey, dbKey] of Object.entries(KEY_MAP)) {
-        const v = (info as Record<string, unknown>)[stateKey];
-        rows.push({ key: dbKey, value: v, updated_at: now });
+        rows.push({ key: dbKey, value: infoRec[stateKey], updated_at: now });
       }
       rows.push({ key: "hours", value: info.hours, updated_at: now });
 
