@@ -36,6 +36,7 @@ STEP 1 — PREVIEW (do NOT call the tool yet)
     • **Category**: <value>
     • **Price**: <value> THB
     • **Description**: <value>
+    • **Tags**: <🌱 vegetarian | 🌿 vegan | 🌶️ spicy | 🌾 gluten-free, or "none" — ALWAYS include this line for menu items, inferring from the description>
     • [other fields as relevant]
 
     Confirm? Reply **"yes"** to proceed, or tell me what to change.
