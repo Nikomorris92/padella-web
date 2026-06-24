@@ -13,6 +13,10 @@ export interface RemoteMenuItem {
   imagePath?: string;
   tags: string[];
   available: boolean;
+  isVegetarian?: boolean;
+  isVegan?: boolean;
+  isSpicy?: boolean;
+  isGlutenFree?: boolean;
   createdAt?: string;
 }
 
@@ -30,6 +34,10 @@ interface DbRow {
   image_path: string | null;
   tags: string[] | null;
   available: boolean;
+  is_vegetarian?: boolean | null;
+  is_vegan?: boolean | null;
+  is_spicy?: boolean | null;
+  is_gluten_free?: boolean | null;
   created_at: string;
 }
 
@@ -45,6 +53,10 @@ function rowToItem(row: DbRow): RemoteMenuItem {
     imagePath: row.image_path ?? undefined,
     tags: row.tags ?? [],
     available: row.available,
+    isVegetarian: !!row.is_vegetarian,
+    isVegan: !!row.is_vegan,
+    isSpicy: !!row.is_spicy,
+    isGlutenFree: !!row.is_gluten_free,
     createdAt: row.created_at,
   };
 }
@@ -97,6 +109,10 @@ export async function addMenuItem(item: {
   name: string; description?: string; story?: string;
   price: number; category: string; tags?: string[];
   photoDataUrl?: string | null;
+  isVegetarian?: boolean;
+  isVegan?: boolean;
+  isSpicy?: boolean;
+  isGlutenFree?: boolean;
 }): Promise<string> {
   let image = "";
   let image_path: string | null = null;
@@ -119,6 +135,10 @@ export async function addMenuItem(item: {
       image_path,
       tags: item.tags ?? [],
       available: true,
+      is_vegetarian: !!item.isVegetarian,
+      is_vegan: !!item.isVegan,
+      is_spicy: !!item.isSpicy,
+      is_gluten_free: !!item.isGlutenFree,
     })
     .select("id")
     .single();
@@ -139,6 +159,10 @@ export async function updateMenuItem(id: string, patch: Partial<Omit<RemoteMenuI
   if (patch.imagePath !== undefined) dbPatch.image_path = patch.imagePath;
   if (patch.tags !== undefined) dbPatch.tags = patch.tags;
   if (patch.available !== undefined) dbPatch.available = patch.available;
+  if (patch.isVegetarian !== undefined) dbPatch.is_vegetarian = patch.isVegetarian;
+  if (patch.isVegan !== undefined) dbPatch.is_vegan = patch.isVegan;
+  if (patch.isSpicy !== undefined) dbPatch.is_spicy = patch.isSpicy;
+  if (patch.isGlutenFree !== undefined) dbPatch.is_gluten_free = patch.isGlutenFree;
 
   const { error } = await supabase.from(TABLE).update(dbPatch).eq("id", id);
   if (error) throw error;

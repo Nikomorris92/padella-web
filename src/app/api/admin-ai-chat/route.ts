@@ -67,6 +67,14 @@ If any of these is unclear or missing, ASK the user for clarification BEFORE cal
 
 Available menu categories: pasta, pizza, starter, main, salad, dessert, cocktails, beer, coffee, smoothies, soft-drinks, snack, panini, fusion, breakfast, daily-special.
 
+DIETARY FILTER TAGS (vegetarian, vegan, spicy, gluten-free):
+Each menu item has 4 boolean filter flags. When the user says things like:
+- "The Margherita is vegetarian" / "Mark Diavola as spicy" / "Tiramisù has gluten" → call update_menu_item with the appropriate new_vegetarian/new_vegan/new_spicy/new_gluten_free.
+- "Add spicy tag to Diavola" → update_menu_item with new_spicy: true.
+- "Remove vegan from Caesar" → update_menu_item with new_vegan: false.
+- When adding a new item, infer the flags from the description (no meat→vegetarian, chili→spicy, no pasta/bread→gluten-free). Be CONSERVATIVE: when in doubt, false.
+Always include the dietary flags in the preview (e.g. "Tags: 🌱 vegetarian, 🌶️ spicy").
+
 Available site_config keys (you can set/get any of these):
 - Contacts: whatsapp, line_id, address, hours
 - Texts: tagline_home (homepage tagline)
@@ -109,13 +117,17 @@ const TOOLS = [{
             description: "EXACTLY one of: pasta, pizza, starter, main, salad, dessert, cocktails, beer, coffee, smoothies, soft-drinks, snack, panini, fusion, breakfast, daily-special. Map Italian: antipasto→starter, primo→pasta, secondo→main, contorno→salad, dolce→dessert.",
           },
           available: { type: "BOOLEAN", description: "Default true." },
+          is_vegetarian: { type: "BOOLEAN", description: "True if no meat/fish (cheese/eggs allowed)." },
+          is_vegan: { type: "BOOLEAN", description: "True if no animal products at all." },
+          is_spicy: { type: "BOOLEAN", description: "True if spicy/chili." },
+          is_gluten_free: { type: "BOOLEAN", description: "True if no pasta/pizza/bread/beer." },
         },
         required: ["name", "price", "category"],
       },
     },
     {
       name: "update_menu_item",
-      description: "Update fields of a menu item by id or by exact name. Provide ONLY the fields to change.",
+      description: "Update fields of a menu item by id or by exact name. Provide ONLY the fields to change. Use new_vegetarian/new_vegan/new_spicy/new_gluten_free to toggle dietary filter tags.",
       parameters: {
         type: "OBJECT",
         properties: {
@@ -126,6 +138,10 @@ const TOOLS = [{
           new_price: { type: "NUMBER" },
           new_category: { type: "STRING" },
           new_available: { type: "BOOLEAN" },
+          new_vegetarian: { type: "BOOLEAN", description: "Set vegetarian filter tag." },
+          new_vegan: { type: "BOOLEAN", description: "Set vegan filter tag." },
+          new_spicy: { type: "BOOLEAN", description: "Set spicy filter tag." },
+          new_gluten_free: { type: "BOOLEAN", description: "Set gluten-free filter tag." },
         },
       },
     },
@@ -173,6 +189,10 @@ async function execTool(name: string, args: ToolCallArgs, sb: any): Promise<unkn
       const payload = {
         name: args.name, description: args.description ?? "", price: args.price,
         category: args.category, available: args.available ?? true, tags: [],
+        is_vegetarian: !!args.is_vegetarian,
+        is_vegan: !!args.is_vegan,
+        is_spicy: !!args.is_spicy,
+        is_gluten_free: !!args.is_gluten_free,
       };
       const { data, error } = await sb.from("menu_items")
         .insert(payload as never)
@@ -188,6 +208,10 @@ async function execTool(name: string, args: ToolCallArgs, sb: any): Promise<unkn
       if (args.new_price !== undefined) patch.price = args.new_price;
       if (args.new_category !== undefined) patch.category = args.new_category;
       if (args.new_available !== undefined) patch.available = args.new_available;
+      if (args.new_vegetarian !== undefined) patch.is_vegetarian = args.new_vegetarian;
+      if (args.new_vegan !== undefined) patch.is_vegan = args.new_vegan;
+      if (args.new_spicy !== undefined) patch.is_spicy = args.new_spicy;
+      if (args.new_gluten_free !== undefined) patch.is_gluten_free = args.new_gluten_free;
       let q = sb.from("menu_items").update(patch as never);
       if (args.id) q = q.eq("id", args.id as string);
       else if (args.name) q = q.eq("name", args.name as string);

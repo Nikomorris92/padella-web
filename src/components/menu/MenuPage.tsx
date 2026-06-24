@@ -35,6 +35,10 @@ export default function MenuPage() {
         image: it.image ?? "",
         tags: it.tags ?? [],
         isNew: true,
+        isVegetarian: !!it.isVegetarian,
+        isVegan: !!it.isVegan,
+        isSpicy: !!it.isSpicy,
+        isGlutenFree: !!it.isGlutenFree,
         available: it.available ?? true,
         order: 999 + i,
       }));

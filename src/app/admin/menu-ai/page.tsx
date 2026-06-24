@@ -319,6 +319,7 @@ export default function AdminMenuAIPage() {
           setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 25, text: "Analyzing the dish to pick the right premium support..." } : m));
           let detectedCategory = "default";
           let detectName = "", detectIngr = "", detectConf = "low";
+          let detectVeg = false, detectVgn = false, detectSpicy = false, detectGF = false;
           try {
             const detectRes = await fetch("/api/detect-dish", {
               method: "POST",
@@ -331,6 +332,10 @@ export default function AdminMenuAIPage() {
               detectName = det.suggested_name || "";
               detectIngr = det.visible_ingredients || "";
               detectConf = det.confidence || "low";
+              detectVeg = !!det.is_vegetarian;
+              detectVgn = !!det.is_vegan;
+              detectSpicy = !!det.is_spicy;
+              detectGF = !!det.is_gluten_free;
             }
           } catch (e) { console.warn("Detect failed:", e); }
 
@@ -368,25 +373,42 @@ export default function AdminMenuAIPage() {
             if (storyRes.ok) generatedStory = sData.story || "";
           } catch (e) { console.warn("Story generation failed:", e); }
 
-          // Pre-popola pendingItem con story incluso
+          // Pre-popola pendingItem con story + dietary flags
+          const dietaryTags: string[] = [];
+          if (detectVeg) dietaryTags.push("vegetarian");
+          if (detectVgn) dietaryTags.push("vegan");
+          if (detectSpicy) dietaryTags.push("spicy");
+          if (detectGF) dietaryTags.push("gluten-free");
+
           setPendingItem({
             category: detectedCategory !== "default" ? detectedCategory : "starter",
             name: detectName,
             description: detectIngr,
             story: generatedStory,
             img: aiData.imageDataUrl,
+            tags: dietaryTags,
           });
 
-          // Mostra anteprima editabile dello storytelling
+          // Mostra anteprima editabile dello storytelling + dietary tags
+          const tagsLine = dietaryTags.length > 0
+            ? `\n🏷️ **Detected tags**: ${dietaryTags.map(t => {
+                if (t === "vegetarian") return "🌱 Vegetarian";
+                if (t === "vegan") return "🌿 Vegan";
+                if (t === "spicy") return "🌶️ Spicy";
+                if (t === "gluten-free") return "🌾 Gluten-free";
+                return t;
+              }).join(" · ")}\nEdit with: *"tags: vegetarian, spicy"* or *"add tag: spicy"* / *"remove tag: vegetarian"*\n`
+            : `\n🏷️ **No dietary tags detected.** Add with *"add tag: vegetarian"* if needed.\n`;
+
           if (generatedStory) {
             setMsgs(prev => [...prev, {
               id: Date.now() + 9, role: "ai",
-              text: `📖 **Storytelling preview** (4 lines, English):\n\n_${generatedStory.split("\n").join("_\n_")}_\n\n✏️ To **edit**: write *"story: <your new text>"*.\n💰 Otherwise, send the **price** (e.g. "320 THB") and I'll confirm.`,
+              text: `📖 **Storytelling preview** (4 lines, English):\n\n_${generatedStory.split("\n").join("_\n_")}_\n${tagsLine}\n✏️ To **edit story**: write *"story: <your new text>"*.\n💰 Send the **price** (e.g. "320 THB") to confirm.`,
             }]);
           } else {
             setMsgs(prev => [...prev, {
               id: Date.now() + 9, role: "ai",
-              text: `💰 Send the **price** (e.g. "320 THB") to confirm and save.`,
+              text: `${tagsLine}\n💰 Send the **price** (e.g. "320 THB") to confirm and save.`,
             }]);
           }
         } catch (aiErr) {
@@ -424,6 +446,42 @@ export default function AdminMenuAIPage() {
         id: Date.now(), role: "ai",
         text: `✏️ **Story updated.**\n\n_${newStory.split("\n").join("_\n_")}_\n\nSend the **price** (e.g. "320 THB") to confirm.`,
       }]);
+      setLoading(false); return;
+    }
+
+    // === COMANDI TAG: "tags: ...", "add tag: x", "remove tag: x" ===
+    const VALID_TAGS = ["vegetarian", "vegan", "spicy", "gluten-free", "gluten free"];
+    const normTag = (t: string) => t.trim().toLowerCase().replace(/[_\s]+/g, "-").replace("glutenfree", "gluten-free");
+    if (pendingItem && /^(tags?|tag)\s*[:=]/i.test(val)) {
+      const list = val.replace(/^(tags?|tag)\s*[:=]\s*/i, "")
+        .split(/[,;|]/).map(normTag).filter(t => VALID_TAGS.includes(t.replace("gluten free", "gluten-free")))
+        .map(t => t === "gluten free" ? "gluten-free" : t);
+      const uniq = Array.from(new Set(list));
+      setPendingItem(p => ({ ...p, tags: uniq }));
+      setMsgs(prev => [...prev, { id: Date.now(), role: "ai",
+        text: `🏷️ Tags set: ${uniq.length ? uniq.join(", ") : "(none)"}` }]);
+      setLoading(false); return;
+    }
+    const addMatch = val.match(/^add\s+tag\s*[:=]?\s*(.+)$/i);
+    if (pendingItem && addMatch) {
+      const t = normTag(addMatch[1]);
+      if (!VALID_TAGS.includes(t)) {
+        setMsgs(prev => [...prev, { id: Date.now(), role: "ai",
+          text: `⚠️ Invalid tag "${t}". Allowed: ${VALID_TAGS.join(", ")}` }]);
+        setLoading(false); return;
+      }
+      const current = pendingItem.tags ?? [];
+      const next = Array.from(new Set([...current, t]));
+      setPendingItem(p => ({ ...p, tags: next }));
+      setMsgs(prev => [...prev, { id: Date.now(), role: "ai", text: `🏷️ Added tag: ${t}. All tags: ${next.join(", ")}` }]);
+      setLoading(false); return;
+    }
+    const remMatch = val.match(/^remove\s+tag\s*[:=]?\s*(.+)$/i);
+    if (pendingItem && remMatch) {
+      const t = normTag(remMatch[1]);
+      const next = (pendingItem.tags ?? []).filter(x => x !== t);
+      setPendingItem(p => ({ ...p, tags: next }));
+      setMsgs(prev => [...prev, { id: Date.now(), role: "ai", text: `🏷️ Removed tag: ${t}. Remaining: ${next.join(", ") || "(none)"}` }]);
       setLoading(false); return;
     }
 
@@ -478,12 +536,17 @@ export default function AdminMenuAIPage() {
       }]);
 
       try {
+        const tags = pendingItem.tags ?? [];
         const remoteId = await addMenuItem({
           name, price, category,
           description: pendingItem.description ?? "",
           story: pendingItem.story ?? "",
-          tags: pendingItem.tags ?? [],
+          tags,
           photoDataUrl: photo,
+          isVegetarian: tags.includes("vegetarian") || tags.includes("vegan"),
+          isVegan: tags.includes("vegan"),
+          isSpicy: tags.includes("spicy"),
+          isGlutenFree: tags.includes("gluten-free"),
         });
         const item: MenuItem = {
           id: remoteId, name, description: pendingItem.description ?? "",

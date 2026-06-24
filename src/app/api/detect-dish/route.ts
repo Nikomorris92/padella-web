@@ -14,8 +14,20 @@ OUTPUT FORMAT — strict JSON, no markdown, no extra text:
   "category": "<one of: pasta, pizza, starter, main, salad, dessert, cocktails, beer, coffee, smoothies, soft-drinks, snack, panini, fusion, breakfast, daily-special>",
   "suggested_name": "<short dish name, 2-5 words, in English. Examples: 'Pizza Margherita', 'Spaghetti Carbonara', 'Tiramisù', 'Aperol Spritz'>",
   "visible_ingredients": "<comma-separated short list of what you see, max 12 words>",
+  "is_vegetarian": <true|false>,
+  "is_vegan": <true|false>,
+  "is_spicy": <true|false>,
+  "is_gluten_free": <true|false>,
   "confidence": "<high | medium | low>"
 }
+
+Dietary detection rules:
+- is_vegetarian: TRUE if NO visible meat, ham, sausage, salami, prosciutto, bacon, fish, seafood (cheese, eggs, milk are OK). FALSE otherwise.
+- is_vegan: TRUE if also no visible cheese, mozzarella, ricotta, mascarpone, milk, cream, butter, eggs, honey. FALSE otherwise.
+- is_spicy: TRUE if visible chili peppers, spicy salami (diavola/spianata), chili oil, sriracha-like sauces. FALSE otherwise.
+- is_gluten_free: TRUE only if NO pasta, pizza, bread, panini, pastry, cake, beer, batter. Salads/grilled meats/sushi/risotto/fruit are gluten-free. FALSE otherwise.
+
+Be CONSERVATIVE: when in doubt, mark as FALSE.
 
 Category mapping rules:
 - A pizza (round flatbread with toppings) → "pizza"
@@ -83,7 +95,12 @@ export async function POST(req: NextRequest) {
 
     const data = await res.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
-    let parsed: { category?: string; suggested_name?: string; visible_ingredients?: string; confidence?: string } = {};
+    interface Detected {
+      category?: string; suggested_name?: string; visible_ingredients?: string;
+      confidence?: string;
+      is_vegetarian?: boolean; is_vegan?: boolean; is_spicy?: boolean; is_gluten_free?: boolean;
+    }
+    let parsed: Detected = {};
     try { parsed = JSON.parse(text); } catch { /* fallback below */ }
 
     return NextResponse.json({
@@ -91,6 +108,10 @@ export async function POST(req: NextRequest) {
       suggested_name: parsed.suggested_name ?? "",
       visible_ingredients: parsed.visible_ingredients ?? "",
       confidence: parsed.confidence ?? "low",
+      is_vegetarian: !!parsed.is_vegetarian,
+      is_vegan: !!parsed.is_vegan,
+      is_spicy: !!parsed.is_spicy,
+      is_gluten_free: !!parsed.is_gluten_free,
     });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "unknown" }, { status: 500 });
