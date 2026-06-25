@@ -140,7 +140,11 @@ export default function MenuPage() {
                 ].map(f => (
                   <button
                     key={f.key}
-                    onClick={() => setFilters(prev => ({ ...prev, [f.key]: !prev[f.key as keyof typeof prev] }))}
+                    onClick={() => setFilters(prev => {
+                      const isActive = prev[f.key as keyof typeof prev];
+                      const reset = { vegetarian: false, vegan: false, glutenFree: false, spicy: false };
+                      return isActive ? reset : { ...reset, [f.key]: true };
+                    })}
                     className={`px-4 py-2 rounded-full text-sm transition-all ${filters[f.key as keyof typeof filters] ? "bg-padella-gold text-padella-green font-semibold" : "glass border border-padella-cream/10 text-padella-cream/60"}`}
                   >
                     {f.label}
