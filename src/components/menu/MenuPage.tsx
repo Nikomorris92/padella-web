@@ -184,6 +184,12 @@ export default function MenuPage() {
           })}
         </div>
 
+        {/* DEBUG overlay - rimuovi dopo verifica */}
+        <div className="bg-black/60 text-padella-cream text-[10px] p-2 mb-3 rounded font-mono whitespace-pre-wrap break-all">
+          BUILD: dietary-v2 · adminItems: {adminItems.length}
+          {"\n"}{adminItems.map(it => `${it.name}: V=${String(it.isVegetarian)} VG=${String(it.isVegan)} S=${String(it.isSpicy)} GF=${String(it.isGlutenFree)}`).join("\n")}
+        </div>
+
         {/* Results count */}
         <div className="text-padella-cream/40 text-xs mb-6">
           {filtered.length} dish{filtered.length !== 1 ? "es" : ""} {activeCategory !== "all" ? `in ${MENU_CATEGORIES.find(c => c.id === activeCategory)?.label}` : ""}
