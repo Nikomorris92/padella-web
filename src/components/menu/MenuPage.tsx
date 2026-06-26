@@ -184,6 +184,12 @@ export default function MenuPage() {
           })}
         </div>
 
+        {/* DEBUG v3 */}
+        <div className="bg-black/70 text-padella-cream text-[10px] p-2 mb-3 rounded font-mono whitespace-pre-wrap break-all">
+          BUILD v3 · adminItems={adminItems.length} · filters={JSON.stringify(filters)}
+          {"\n"}{adminItems.map(it => `${it.name}: V=${it.isVegetarian} VG=${it.isVegan} S=${it.isSpicy} GF=${it.isGlutenFree} avail=${it.available}`).join("\n") || "(no admin items loaded)"}
+        </div>
+
         {/* Results count */}
         <div className="text-padella-cream/40 text-xs mb-6">
           {filtered.length} dish{filtered.length !== 1 ? "es" : ""} {activeCategory !== "all" ? `in ${MENU_CATEGORIES.find(c => c.id === activeCategory)?.label}` : ""}
