@@ -77,12 +77,8 @@ export default function MenuPage() {
     [timeSlot, allItems]
   );
 
-  // eslint-disable-next-line no-console
-  console.log("[MENU-DEBUG]", "v4-FLAGS", "adminItems:", adminItems.length, adminItems.map(i => ({ n: i.name, V: i.isVegetarian, VG: i.isVegan, S: i.isSpicy, GF: i.isGlutenFree })));
-
   return (
     <div className="min-h-screen bg-padella-green pt-20">
-      <div className="fixed top-0 left-0 right-0 bg-red-600 text-white text-[10px] text-center py-0.5 z-[100] font-mono">v4 · admin={adminItems.length} · veg={adminItems.filter(i=>i.isVegetarian).length}</div>
       {/* Page header */}
       <div className="relative py-16 text-center overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-padella-charcoal/40 to-transparent" />
