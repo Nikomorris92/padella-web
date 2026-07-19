@@ -12,6 +12,7 @@ Analyze the image and identify the dish.
 OUTPUT FORMAT — strict JSON, no markdown, no extra text:
 {
   "category": "<one of: pasta, pizza, starter, main, salad, dessert, cocktails, beer, coffee, smoothies, soft-drinks, snack, panini, fusion, breakfast, daily-special>",
+  "is_beverage": <true|false — TRUE if the main subject is ANY drink container: glass with liquid, cup, mug, bottle, can, cocktail glass, wine glass, coffee cup, tea glass. FALSE only for solid food on plates.>,
   "suggested_name": "<short dish name, 2-5 words, in English. Examples: 'Pizza Margherita', 'Spaghetti Carbonara', 'Tiramisù', 'Aperol Spritz'>",
   "visible_ingredients": "<comma-separated short list of what you see, max 12 words>",
   "is_vegetarian": <true|false>,
@@ -97,7 +98,7 @@ export async function POST(req: NextRequest) {
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
     interface Detected {
       category?: string; suggested_name?: string; visible_ingredients?: string;
-      confidence?: string;
+      confidence?: string; is_beverage?: boolean;
       is_vegetarian?: boolean; is_vegan?: boolean; is_spicy?: boolean; is_gluten_free?: boolean;
     }
     let parsed: Detected = {};
@@ -105,6 +106,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       category: parsed.category ?? "starter",
+      is_beverage: !!parsed.is_beverage,
       suggested_name: parsed.suggested_name ?? "",
       visible_ingredients: parsed.visible_ingredients ?? "",
       confidence: parsed.confidence ?? "low",

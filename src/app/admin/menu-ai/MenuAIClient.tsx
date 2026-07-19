@@ -319,7 +319,7 @@ export default function AdminMenuAIPage() {
           setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 25, text: "Analyzing the dish to pick the right premium support..." } : m));
           let detectedCategory = "default";
           let detectName = "", detectIngr = "", detectConf = "low";
-          let detectVeg = false, detectVgn = false, detectSpicy = false, detectGF = false;
+          let detectVeg = false, detectVgn = false, detectSpicy = false, detectGF = false, detectIsBeverage = false;
           try {
             const detectRes = await fetch("/api/detect-dish", {
               method: "POST",
@@ -336,13 +336,14 @@ export default function AdminMenuAIPage() {
               detectVgn = !!det.is_vegan;
               detectSpicy = !!det.is_spicy;
               detectGF = !!det.is_gluten_free;
+              detectIsBeverage = !!det.is_beverage;
             }
           } catch (e) { console.warn("Detect failed:", e); }
 
           // STEP B: OpenAI compositing SOLO per il cibo. Per bevande/lattine/bottiglie
-          // gpt-image-2 tende a sostituire il soggetto → per queste categorie usiamo la foto originale.
+          // gpt-image-2 tende a sostituire il soggetto → salta sempre se è una bevanda.
           const DRINK_CATS = ["cocktails","beer","coffee","smoothies","soft-drinks","drink"];
-          const skipAI = DRINK_CATS.includes(detectedCategory);
+          const skipAI = detectIsBeverage || DRINK_CATS.includes(detectedCategory);
           let aiData: { imageDataUrl?: string } = {};
           if (skipAI) {
             setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 90, text: "Beverage detected — keeping your original photo untouched." } : m));
