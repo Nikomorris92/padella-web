@@ -339,22 +339,32 @@ export default function AdminMenuAIPage() {
             }
           } catch (e) { console.warn("Detect failed:", e); }
 
-          // STEP B: OpenAI gpt-image-2 fa tutto il compositing professionale in 1 chiamata.
-          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 50, text: "OpenAI is composing the pro menu shot (~10s)..." } : m));
-          const aiRes = await fetch("/api/enhance-openai", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ imageBase64: compressed, category: detectedCategory, quality: "medium" }),
-          });
-          const aiData = await aiRes.json();
-          if (!aiRes.ok || !aiData.imageDataUrl) throw new Error(aiData.error || "Compositing error");
+          // STEP B: OpenAI compositing SOLO per il cibo. Per bevande/lattine/bottiglie
+          // gpt-image-2 tende a sostituire il soggetto → per queste categorie usiamo la foto originale.
+          const DRINK_CATS = ["cocktails","beer","coffee","smoothies","soft-drinks","drink"];
+          const skipAI = DRINK_CATS.includes(detectedCategory);
+          let aiData: { imageDataUrl?: string } = {};
+          if (skipAI) {
+            setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 90, text: "Beverage detected — keeping your original photo untouched." } : m));
+            aiData = { imageDataUrl: compressed };
+          } else {
+            setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 50, text: "OpenAI is composing the pro menu shot (~10s)..." } : m));
+            const aiRes = await fetch("/api/enhance-openai", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ imageBase64: compressed, category: detectedCategory, quality: "medium" }),
+            });
+            aiData = await aiRes.json();
+            if (!aiRes.ok || !aiData.imageDataUrl) throw new Error((aiData as { error?: string }).error || "Compositing error");
+          }
 
-          setPendingProcessed(aiData.imageDataUrl);
+          const finalImg = aiData.imageDataUrl ?? compressed;
+          setPendingProcessed(finalImg);
           const confEmoji = detectConf === "high" ? "🟢" : detectConf === "medium" ? "🟡" : "🟠";
           setMsgs(prev => prev.map(m => m.id === aiMsgId ? {
             ...m, uploadStage: "done", uploadProgress: 100,
             text: `🎨 **Photo ready!**\n\n${confEmoji} **Detected category**: ${detectedCategory}\n• **Suggested name**: ${detectName || "—"}\n• **Visible ingredients**: ${detectIngr || "—"}\n\nGenerating storytelling...`,
-            img: aiData.imageDataUrl,
+            img: finalImg,
           } : m));
 
           // STEP D: genera storytelling in inglese (sempre) per il piatto
@@ -385,7 +395,7 @@ export default function AdminMenuAIPage() {
             name: detectName,
             description: detectIngr,
             story: generatedStory,
-            img: aiData.imageDataUrl,
+            img: finalImg,
             tags: dietaryTags,
           });
 
