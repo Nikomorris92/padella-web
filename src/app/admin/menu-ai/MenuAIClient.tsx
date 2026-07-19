@@ -99,9 +99,8 @@ async function composeBrandShot(subjectDataUrl: string): Promise<string> {
     im.src = src;
   });
 
-  const [bg, logo, subject] = await Promise.all([
+  const [bg, subject] = await Promise.all([
     loadImg("/brand-references/bg-template.png"),
-    loadImg("/logo-clean.png"),
     loadImg(subjectDataUrl),
   ]);
 
@@ -118,14 +117,16 @@ async function composeBrandShot(subjectDataUrl: string): Promise<string> {
   else { bw = W; bh = W / bgRatio; by = (H - bh) / 2; }
   ctx.drawImage(bg, bx, by, bw, bh);
 
-  // Soggetto centrato — max 62% larghezza, max 70% altezza
+  // Soggetto centrato — lascia spazio al logo già impresso nel bg (~15% bottom)
   const maxSubW = W * 0.62;
-  const maxSubH = H * 0.70;
+  const maxSubH = H * 0.68;
   const sRatio = subject.width / subject.height;
   let sw = maxSubW, sh = sw / sRatio;
   if (sh > maxSubH) { sh = maxSubH; sw = sh * sRatio; }
   const sx = (W - sw) / 2;
-  const sy = (H - sh) / 2 - H * 0.03; // leggero shift verso l'alto per far posto al logo
+  // Centra il soggetto nella zona SOPRA il logo (0..85% dell'altezza)
+  const safeZoneH = H * 0.85;
+  const sy = (safeZoneH - sh) / 2;
   // Ombra morbida sotto
   ctx.save();
   ctx.shadowColor = "rgba(0,0,0,0.55)";
@@ -134,15 +135,7 @@ async function composeBrandShot(subjectDataUrl: string): Promise<string> {
   ctx.drawImage(subject, sx, sy, sw, sh);
   ctx.restore();
 
-  // Logo in basso — max 22% larghezza
-  const maxLogoW = W * 0.22;
-  const lRatio = logo.width / logo.height;
-  const lw = maxLogoW;
-  const lh = lw / lRatio;
-  const lx = (W - lw) / 2;
-  const ly = H - lh - 30;
-  ctx.drawImage(logo, lx, ly, lw, lh);
-
+  // Il logo è già impresso nel bg-template.png in basso, niente overlay aggiuntivo.
   return canvas.toDataURL("image/jpeg", 0.9);
 }
 
