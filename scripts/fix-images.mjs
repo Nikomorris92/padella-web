@@ -7,9 +7,9 @@
 // coordinata hardcoded, nessun workaround Sharp.
 //
 // Uso:
-//   npm run fix-images                    -> batch completo
-//   npm run fix-images -- --only=lipton   -> solo item con quel nome/id
-//   npm run fix-images -- --dry-run       -> non fa upload, valida solo
+//   npm run fix-images                             -> batch completo
+//   npm run fix-images -- --only=lipton            -> solo item con quel nome/id (case-insensitive)
+//   npm run fix-images -- --dry-run                -> download + detect + inpaint + validate, NO upload/DB
 //
 // ENV richieste (lette da .env.local):
 //   NEXT_PUBLIC_SUPABASE_URL
@@ -45,12 +45,13 @@ const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_KEY;
 const REPLICATE_TOKEN = process.env.REPLICATE_API_TOKEN;
 const BUCKET = "menu-photos";
+const BACKUP_PREFIX = "_backup"; // path prefix in same bucket
 
 // Colore reale della fascia inferiore rasterizzata
 const BAND_COLOR = { r: 8, g: 12, b: 18 };
 const COLOR_TOLERANCE = 30;       // ±30 su ciascun canale
 const BAND_ROW_THRESHOLD = 0.65;  // ≥65% pixel matching → riga = band
-const MAX_BAND_SEARCH = 0.5;      // banda non oltre il 50% inferiore dell'immagine
+const MAX_BAND_SEARCH = 0.5;      // banda non oltre il 50% inferiore
 
 if (!SB_URL || !SB_KEY || !REPLICATE_TOKEN) {
   console.error("[FATAL] Missing env: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_KEY, REPLICATE_API_TOKEN");
@@ -58,13 +59,14 @@ if (!SB_URL || !SB_KEY || !REPLICATE_TOKEN) {
 }
 
 // ============================================================================
-// LOGGER
+// LOGGER (per-item structured log)
 // ============================================================================
 const logger = {
   info: (m) => console.log(`[INFO ] ${m}`),
   warn: (m) => console.warn(`[WARN ] ${m}`),
   err:  (m) => console.error(`[ERROR] ${m}`),
-  step: (name, id) => console.log(`  → [${name}] ${id}`),
+  itemStart: (name) => console.log(`\n──────── ${name} ────────`),
+  itemField: (k, v) => console.log(`  ${k}: ${v}`),
 };
 
 // ============================================================================
@@ -83,13 +85,13 @@ async function downloadImage(url) {
   return Buffer.from(await r.arrayBuffer());
 }
 
-async function uploadImage(pathInBucket, buf) {
+async function uploadImage(pathInBucket, buf, contentType = "image/jpeg") {
   const r = await fetch(`${SB_URL}/storage/v1/object/${BUCKET}/${pathInBucket}`, {
     method: "POST",
     headers: {
       apikey: SB_KEY,
       Authorization: `Bearer ${SB_KEY}`,
-      "Content-Type": "image/jpeg",
+      "Content-Type": contentType,
       "x-upsert": "true",
     },
     body: buf,
@@ -111,10 +113,17 @@ async function updateItemImageUrl(id, url) {
   if (!r.ok) throw new Error(`DB update ${r.status}`);
 }
 
+// Backup obbligatorio prima di ogni upload: copia l'originale in _backup/<timestamp>/<path>
+async function backupOriginal(pathInBucket, originalBuf, runTimestamp) {
+  const backupPath = `${BACKUP_PREFIX}/${runTimestamp}/${pathInBucket}`;
+  await uploadImage(backupPath, originalBuf, "image/jpeg");
+  return backupPath;
+}
+
 // ============================================================================
 // DETECT MASK
-// Individua la fascia inferiore analizzando i pixel dal basso verso l'alto.
-// Nessuna coordinata fissa. Ritorna { maskPng, bandStartY, W, H } oppure null.
+// Analizza pixel dal basso verso l'alto. Nessuna coordinata fissa.
+// Ritorna { maskPng, bandStartY, W, H } oppure null.
 // ============================================================================
 async function detectMask(imgBuf) {
   const { data, info } = await sharp(imgBuf).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -133,17 +142,15 @@ async function detectMask(imgBuf) {
     return (matches / W) >= BAND_ROW_THRESHOLD;
   };
 
-  // Scan dal basso: trova il punto in cui la fascia INIZIA (bordo superiore)
   const searchLimit = Math.floor(H * (1 - MAX_BAND_SEARCH));
   let bandStartY = -1;
   for (let y = H - 1; y >= searchLimit; y--) {
     if (isBandRow(y)) bandStartY = y;
-    else if (bandStartY !== -1) break; // trovato limite superiore contiguo
+    else if (bandStartY !== -1) break;
   }
 
   if (bandStartY === -1 || bandStartY >= H - 5) return null;
 
-  // Maschera binaria: 255 (bianco) = area da inpaint, 0 = preservare
   const mask = Buffer.alloc(W * H, 0);
   for (let y = bandStartY; y < H; y++) {
     for (let x = 0; x < W; x++) mask[y * W + x] = 255;
@@ -154,12 +161,21 @@ async function detectMask(imgBuf) {
 
 // ============================================================================
 // INPAINT (Replicate LaMa)
-// Nota: il model slug può cambiare nel tempo. Verificare su replicate.com/cjwbw/lama
-// Se il modello viene deprecato, sostituire con equivalente LaMa/inpainting.
+// Verifica preliminare esistenza modello con checkModelAvailable().
+// Timeout 120s per polling.
 // ============================================================================
 const REPLICATE_MODEL = "cjwbw/lama";
 const REPLICATE_POLL_INTERVAL = 2000; // ms
-const REPLICATE_TIMEOUT = 180_000;    // 3 min per immagine
+const REPLICATE_TIMEOUT = 120_000;    // 120s max per immagine
+
+async function checkModelAvailable() {
+  const r = await fetch(`https://api.replicate.com/v1/models/${REPLICATE_MODEL}`, {
+    headers: { Authorization: `Bearer ${REPLICATE_TOKEN}` },
+  });
+  if (r.status === 404) throw new Error(`Modello Replicate "${REPLICATE_MODEL}" non trovato (404). Aggiornare REPLICATE_MODEL.`);
+  if (!r.ok) throw new Error(`Verifica modello ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  return r.json();
+}
 
 function toDataUrl(buf, mime) {
   return `data:${mime};base64,${buf.toString("base64")}`;
@@ -183,7 +199,7 @@ async function inpaint(imgBuf, maskPng) {
 
   const t0 = Date.now();
   while (pred.status === "starting" || pred.status === "processing") {
-    if (Date.now() - t0 > REPLICATE_TIMEOUT) throw new Error("Replicate timeout");
+    if (Date.now() - t0 > REPLICATE_TIMEOUT) throw new Error("Replicate timeout (>120s)");
     await new Promise((r) => setTimeout(r, REPLICATE_POLL_INTERVAL));
     const pr = await fetch(pred.urls.get, { headers: { Authorization: `Bearer ${REPLICATE_TOKEN}` } });
     if (!pr.ok) throw new Error(`Replicate poll ${pr.status}`);
@@ -199,70 +215,98 @@ async function inpaint(imgBuf, maskPng) {
 }
 
 // ============================================================================
-// VALIDATE
-// Prima di uploadare: verifica dimensione, non-black/white, leggibilità.
+// VALIDATE — 6 controlli
+// - file non vuoto
+// - MIME immagine decodificabile
+// - decodifica sharp OK
+// - dimensioni identiche all'originale (o riscalate a match)
+// - canali validi (3 o 4)
+// - output ≠ maschera (compare mean pixel value against mask)
+// - non nero/bianco
 // ============================================================================
-async function validate(outBuf, origW, origH) {
+async function validate(outBuf, origW, origH, maskPng) {
+  if (!outBuf || outBuf.length < 100) return { ok: false, reason: "output vuoto o troppo piccolo" };
+  let meta;
   try {
-    const meta = await sharp(outBuf).metadata();
-    if (!meta.width || !meta.height) return { ok: false, reason: "no dims" };
-    if (meta.width !== origW || meta.height !== origH) {
-      // Se l'inpaint restituisce dim diverse, ridimensiona per matchare originale
-      const resized = await sharp(outBuf).resize(origW, origH, { fit: "fill" }).jpeg({ quality: 90 }).toBuffer();
-      const stats = await sharp(resized).stats();
-      const meanRGB = stats.channels.slice(0, 3).map((c) => c.mean);
-      const avg = (meanRGB[0] + meanRGB[1] + meanRGB[2]) / 3;
-      if (avg < 5) return { ok: false, reason: "output nearly black" };
-      if (avg > 250) return { ok: false, reason: "output nearly white" };
-      return { ok: true, buf: resized };
-    }
-    const stats = await sharp(outBuf).stats();
-    const meanRGB = stats.channels.slice(0, 3).map((c) => c.mean);
-    const avg = (meanRGB[0] + meanRGB[1] + meanRGB[2]) / 3;
-    if (avg < 5) return { ok: false, reason: "output nearly black" };
-    if (avg > 250) return { ok: false, reason: "output nearly white" };
-    return { ok: true, buf: outBuf };
+    meta = await sharp(outBuf).metadata();
   } catch (e) {
-    return { ok: false, reason: `sharp read err: ${e.message}` };
+    return { ok: false, reason: `decodifica fallita: ${e.message}` };
   }
+  if (!meta.format || !["jpeg","png","webp","jpg"].includes(meta.format)) {
+    return { ok: false, reason: `MIME non valido: ${meta.format}` };
+  }
+  if (!meta.width || !meta.height) return { ok: false, reason: "dimensioni assenti" };
+  if (!meta.channels || (meta.channels !== 3 && meta.channels !== 4)) {
+    return { ok: false, reason: `canali non validi: ${meta.channels}` };
+  }
+
+  let finalBuf = outBuf;
+  if (meta.width !== origW || meta.height !== origH) {
+    // Resize deterministico per matchare originale
+    finalBuf = await sharp(outBuf).resize(origW, origH, { fit: "fill" }).jpeg({ quality: 90 }).toBuffer();
+  }
+
+  const stats = await sharp(finalBuf).stats();
+  const meanRGB = stats.channels.slice(0, 3).map((c) => c.mean);
+  const avg = (meanRGB[0] + meanRGB[1] + meanRGB[2]) / 3;
+  if (avg < 5)   return { ok: false, reason: "output quasi nero" };
+  if (avg > 250) return { ok: false, reason: "output quasi bianco" };
+
+  // Confronto grossolano output vs mask: la mask è monocromatica (0 o 255 su singolo canale).
+  // Se l'output ha stats simili alla mask (media ≈ 255 o ≈ 0 con std ≈ 0), è la mask.
+  const stdRGB = stats.channels.slice(0, 3).map((c) => c.stdev);
+  const stdAvg = (stdRGB[0] + stdRGB[1] + stdRGB[2]) / 3;
+  if (stdAvg < 2) return { ok: false, reason: "output senza varianza (probabile mask)" };
+
+  return { ok: true, buf: finalBuf };
 }
 
 // ============================================================================
 // BATCH PROCESSOR
 // ============================================================================
-async function processItem(it, opts) {
-  logger.step("download", it.name);
-  const imgBuf = await downloadImage(it.image);
+async function processItem(it, opts, runTimestamp) {
+  logger.itemStart(it.name);
+  logger.itemField("File", it.image_path);
 
-  logger.step("detect", it.name);
+  const imgBuf = await downloadImage(it.image);
+  logger.itemField("Downloaded", `${imgBuf.length}B`);
+
   const detected = await detectMask(imgBuf);
+  logger.itemField("Mask detected", detected ? "YES" : "NO");
   if (!detected) {
     logger.warn(`SKIP ${it.name}: fascia non rilevata`);
     return { status: "skipped", reason: "band not detected" };
   }
   const { maskPng, bandStartY, W, H } = detected;
-  logger.info(`   fascia rilevata da y=${bandStartY} (h=${H - bandStartY}px su ${H})`);
+  logger.itemField("Mask height", `${H - bandStartY}px (from y=${bandStartY})`);
 
-  logger.step("inpaint", it.name);
-  const outRaw = await inpaint(imgBuf, maskPng);
-
-  logger.step("validate", it.name);
-  const v = await validate(outRaw, W, H);
-  if (!v.ok) {
-    logger.err(`FAIL ${it.name}: ${v.reason}`);
-    return { status: "failed", reason: v.reason };
+  let outRaw;
+  try {
+    outRaw = await inpaint(imgBuf, maskPng);
+    logger.itemField("Replicate", "SUCCESS");
+  } catch (e) {
+    logger.itemField("Replicate", `FAILED (${e.message})`);
+    return { status: "failed", reason: `replicate: ${e.message}` };
   }
 
+  const v = await validate(outRaw, W, H, maskPng);
+  logger.itemField("Validation", v.ok ? "PASS" : `FAILED (${v.reason})`);
+  if (!v.ok) return { status: "failed", reason: `validation: ${v.reason}` };
+
   if (opts.dryRun) {
-    logger.info(`DRY-RUN ${it.name}: output ${v.buf.length}B, no upload`);
+    logger.itemField("Upload", "SKIPPED (dry-run)");
     return { status: "processed", dryRun: true };
   }
 
-  logger.step("upload", it.name);
+  // BACKUP obbligatorio prima di sovrascrivere
+  const backupPath = await backupOriginal(it.image_path, imgBuf, runTimestamp);
+  logger.itemField("Backup", backupPath);
+
   await uploadImage(it.image_path, v.buf);
   const newUrl = `${SB_URL}/storage/v1/object/public/${BUCKET}/${it.image_path}?v=${Date.now()}`;
   await updateItemImageUrl(it.id, newUrl);
-  logger.info(`OK ${it.name}`);
+  logger.itemField("Upload", "SUCCESS");
+
   return { status: "processed" };
 }
 
@@ -276,12 +320,33 @@ function parseArgs() {
   return { only, dryRun };
 }
 
+function makeRunTimestamp() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
 async function main() {
   const opts = parseArgs();
-  logger.info(`Start (dry-run=${opts.dryRun}, only=${opts.only ?? "all"})`);
+  const runTimestamp = makeRunTimestamp();
+  logger.info(`Start (dry-run=${opts.dryRun}, only=${opts.only ?? "all"}, run=${runTimestamp})`);
+
+  // Verifica preliminare modello Replicate
+  try {
+    const modelInfo = await checkModelAvailable();
+    logger.info(`Modello Replicate OK: ${modelInfo.owner}/${modelInfo.name}`);
+  } catch (e) {
+    logger.err(e.message);
+    process.exit(1);
+  }
+
   const items = await fetchAllItems();
-  const target = opts.only
-    ? items.filter((i) => i.id === opts.only || i.name.toLowerCase().includes(opts.only.toLowerCase()))
+  const onlyLower = opts.only?.toLowerCase();
+  const target = onlyLower
+    ? items.filter((i) =>
+        i.id.toLowerCase() === onlyLower ||
+        i.name.toLowerCase().includes(onlyLower)
+      )
     : items;
   logger.info(`${target.length} item(s) da processare`);
   if (target.length === 0) { logger.warn("Nessun item selezionato"); process.exit(0); }
@@ -290,7 +355,7 @@ async function main() {
   const errors = [];
   for (const it of target) {
     try {
-      const res = await processItem(it, opts);
+      const res = await processItem(it, opts, runTimestamp);
       if (res.status === "processed") processed++;
       else if (res.status === "skipped") { skipped++; errors.push(`SKIP ${it.name}: ${res.reason}`); }
       else { failed++; errors.push(`FAIL ${it.name}: ${res.reason}`); }
@@ -305,6 +370,7 @@ async function main() {
   console.log(`Processed: ${processed}`);
   console.log(`Skipped:   ${skipped}`);
   console.log(`Failed:    ${failed}`);
+  if (!opts.dryRun && processed > 0) console.log(`Backup dir: ${BACKUP_PREFIX}/${runTimestamp}/`);
   if (errors.length) {
     console.log(`\n──── DETTAGLI ────`);
     for (const e of errors) console.log(e);
