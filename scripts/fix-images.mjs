@@ -47,11 +47,10 @@ const REPLICATE_TOKEN = process.env.REPLICATE_API_TOKEN;
 const BUCKET = "menu-photos";
 const BACKUP_PREFIX = "_backup"; // path prefix in same bucket
 
-// Colore reale della fascia inferiore rasterizzata
-const BAND_COLOR = { r: 8, g: 12, b: 18 };
-const COLOR_TOLERANCE = 30;       // ±30 su ciascun canale
-const BAND_ROW_THRESHOLD = 0.65;  // ≥65% pixel matching → riga = band
-const MAX_BAND_SEARCH = 0.5;      // banda non oltre il 50% inferiore
+// Maschera geometrica fissa: bottom 30% dell'immagine (proporzionale, scala con dimensioni).
+// Tutte le 93 immagini sono state generate dallo stesso template → posizione fascia identica.
+// Nessun detection colore.
+const MASK_BOTTOM_RATIO = 0.30;
 
 if (!SB_URL || !SB_KEY || !REPLICATE_TOKEN) {
   console.error("[FATAL] Missing env: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_KEY, REPLICATE_API_TOKEN");
@@ -121,36 +120,16 @@ async function backupOriginal(pathInBucket, originalBuf, runTimestamp) {
 }
 
 // ============================================================================
-// DETECT MASK
-// Analizza pixel dal basso verso l'alto. Nessuna coordinata fissa.
-// Ritorna { maskPng, bandStartY, W, H } oppure null.
+// GENERATE MASK — geometrica fissa
+// Rettangolo che copre il bottom MASK_BOTTOM_RATIO dell'immagine.
+// Nessun detection, nessuna dipendenza dai pixel. Ratio proporzionale.
 // ============================================================================
-async function detectMask(imgBuf) {
-  const { data, info } = await sharp(imgBuf).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const W = info.width, H = info.height;
+async function generateMask(imgBuf) {
+  const meta = await sharp(imgBuf).metadata();
+  const W = meta.width, H = meta.height;
+  if (!W || !H) return null;
 
-  const isBandRow = (y) => {
-    let matches = 0;
-    for (let x = 0; x < W; x++) {
-      const i = (y * W + x) * 4;
-      if (
-        Math.abs(data[i]     - BAND_COLOR.r) < COLOR_TOLERANCE &&
-        Math.abs(data[i + 1] - BAND_COLOR.g) < COLOR_TOLERANCE &&
-        Math.abs(data[i + 2] - BAND_COLOR.b) < COLOR_TOLERANCE
-      ) matches++;
-    }
-    return (matches / W) >= BAND_ROW_THRESHOLD;
-  };
-
-  const searchLimit = Math.floor(H * (1 - MAX_BAND_SEARCH));
-  let bandStartY = -1;
-  for (let y = H - 1; y >= searchLimit; y--) {
-    if (isBandRow(y)) bandStartY = y;
-    else if (bandStartY !== -1) break;
-  }
-
-  if (bandStartY === -1 || bandStartY >= H - 5) return null;
-
+  const bandStartY = Math.floor(H * (1 - MASK_BOTTOM_RATIO));
   const mask = Buffer.alloc(W * H, 0);
   for (let y = bandStartY; y < H; y++) {
     for (let x = 0; x < W; x++) mask[y * W + x] = 255;
@@ -164,17 +143,21 @@ async function detectMask(imgBuf) {
 // Verifica preliminare esistenza modello con checkModelAvailable().
 // Timeout 120s per polling.
 // ============================================================================
-const REPLICATE_MODEL = "cjwbw/lama";
+const REPLICATE_MODEL = "zylim0702/remove-object";
 const REPLICATE_POLL_INTERVAL = 2000; // ms
 const REPLICATE_TIMEOUT = 120_000;    // 120s max per immagine
 
+let CACHED_VERSION_ID = null;
 async function checkModelAvailable() {
   const r = await fetch(`https://api.replicate.com/v1/models/${REPLICATE_MODEL}`, {
     headers: { Authorization: `Bearer ${REPLICATE_TOKEN}` },
   });
   if (r.status === 404) throw new Error(`Modello Replicate "${REPLICATE_MODEL}" non trovato (404). Aggiornare REPLICATE_MODEL.`);
   if (!r.ok) throw new Error(`Verifica modello ${r.status}: ${(await r.text()).slice(0, 200)}`);
-  return r.json();
+  const meta = await r.json();
+  CACHED_VERSION_ID = meta?.latest_version?.id;
+  if (!CACHED_VERSION_ID) throw new Error(`Nessuna latest_version per ${REPLICATE_MODEL}`);
+  return meta;
 }
 
 function toDataUrl(buf, mime) {
@@ -185,14 +168,14 @@ async function inpaint(imgBuf, maskPng) {
   const imgDataUrl = toDataUrl(imgBuf, "image/jpeg");
   const maskDataUrl = toDataUrl(maskPng, "image/png");
 
-  const startRes = await fetch(`https://api.replicate.com/v1/models/${REPLICATE_MODEL}/predictions`, {
+  const startRes = await fetch(`https://api.replicate.com/v1/predictions`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${REPLICATE_TOKEN}`,
       "Content-Type": "application/json",
       Prefer: "wait=60",
     },
-    body: JSON.stringify({ input: { image: imgDataUrl, mask: maskDataUrl } }),
+    body: JSON.stringify({ version: CACHED_VERSION_ID, input: { image: imgDataUrl, mask: maskDataUrl } }),
   });
   if (!startRes.ok) throw new Error(`Replicate start ${startRes.status}: ${(await startRes.text()).slice(0, 300)}`);
   let pred = await startRes.json();
@@ -271,14 +254,13 @@ async function processItem(it, opts, runTimestamp) {
   const imgBuf = await downloadImage(it.image);
   logger.itemField("Downloaded", `${imgBuf.length}B`);
 
-  const detected = await detectMask(imgBuf);
-  logger.itemField("Mask detected", detected ? "YES" : "NO");
+  const detected = await generateMask(imgBuf);
   if (!detected) {
-    logger.warn(`SKIP ${it.name}: fascia non rilevata`);
-    return { status: "skipped", reason: "band not detected" };
+    logger.warn(`SKIP ${it.name}: immagine non decodificabile`);
+    return { status: "skipped", reason: "image unreadable" };
   }
   const { maskPng, bandStartY, W, H } = detected;
-  logger.itemField("Mask height", `${H - bandStartY}px (from y=${bandStartY})`);
+  logger.itemField("Mask (geometric)", `bottom ${Math.round(MASK_BOTTOM_RATIO*100)}% = ${H - bandStartY}px (from y=${bandStartY})`);
 
   let outRaw;
   try {
@@ -286,8 +268,11 @@ async function processItem(it, opts, runTimestamp) {
     logger.itemField("Replicate", "SUCCESS");
   } catch (e) {
     logger.itemField("Replicate", `FAILED (${e.message})`);
+    if (opts.debug) await saveDebugFiles(it.name, imgBuf, maskPng, null, W, H);
     return { status: "failed", reason: `replicate: ${e.message}` };
   }
+
+  if (opts.debug) await saveDebugFiles(it.name, imgBuf, maskPng, outRaw, W, H);
 
   const v = await validate(outRaw, W, H, maskPng);
   logger.itemField("Validation", v.ok ? "PASS" : `FAILED (${v.reason})`);
@@ -317,7 +302,38 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const only = args.find((a) => a.startsWith("--only="))?.split("=")[1];
   const dryRun = args.includes("--dry-run");
-  return { only, dryRun };
+  const debug = args.includes("--debug");
+  return { only, dryRun, debug };
+}
+
+const DEBUG_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "debug");
+
+async function saveDebugFiles(itemName, originalBuf, maskPng, resultBuf, W, H) {
+  await fs.mkdir(DEBUG_DIR, { recursive: true });
+  const slug = itemName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  // 1) originale
+  await fs.writeFile(path.join(DEBUG_DIR, `${slug}-original.jpg`), originalBuf);
+  // 2) mask
+  await fs.writeFile(path.join(DEBUG_DIR, `${slug}-mask.png`), maskPng);
+  // 3) overlay: originale + mask in rosso semi-trasparente.
+  // maskPng è single-channel (0=nero, 255=bianco). Costruiamo un'immagine RGBA rossa
+  // dove alpha = mask (così solo dove mask=255 vediamo il rosso).
+  const maskRaw = await sharp(maskPng).greyscale().raw().toBuffer({ resolveWithObject: true });
+  const alphaData = maskRaw.data;
+  const rgbaData = Buffer.alloc(alphaData.length * 4);
+  for (let i = 0; i < alphaData.length; i++) {
+    const a = Math.round(alphaData[i] * 0.6); // 60% max opacity
+    rgbaData[i*4] = 255;
+    rgbaData[i*4+1] = 0;
+    rgbaData[i*4+2] = 0;
+    rgbaData[i*4+3] = a;
+  }
+  const redOverlay = await sharp(rgbaData, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer();
+  const overlay = await sharp(originalBuf).composite([{ input: redOverlay, top: 0, left: 0 }]).jpeg({ quality: 85 }).toBuffer();
+  await fs.writeFile(path.join(DEBUG_DIR, `${slug}-overlay.jpg`), overlay);
+  // 4) risultato inpaint (raw dal servizio, prima del resize)
+  if (resultBuf) await fs.writeFile(path.join(DEBUG_DIR, `${slug}-result.jpg`), resultBuf);
+  logger.itemField("Debug files", DEBUG_DIR);
 }
 
 function makeRunTimestamp() {
