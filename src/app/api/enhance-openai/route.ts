@@ -8,38 +8,51 @@ export const runtime = "nodejs";
 const MODEL = "gpt-image-2";
 const ENDPOINT = "https://api.openai.com/v1/images/edits";
 
+const DRINK_CATEGORIES = new Set(["cocktails", "beer", "coffee", "smoothies", "soft-drinks", "drink"]);
+
 function buildPrompt(category: string): string {
+  const isDrink = DRINK_CATEGORIES.has(category);
+
   const supportText: Record<string, string> = {
-    pizza:   "an elegant matte black premium round plate, slightly larger than the pizza",
-    pasta:   "an elegant matte black premium ceramic bowl",
-    dessert: "an elegant matte black premium round plate",
-    drink:   "a premium dark wooden coaster under the glass",
-    starter: "an elegant matte black premium oval plate",
-    panini:  "a premium wooden cutting board",
-    salad:   "an elegant matte black premium bowl",
-    main:    "an elegant matte black premium ceramic plate",
+    pizza:       "an elegant matte black premium round plate, slightly larger than the pizza",
+    pasta:       "an elegant matte black premium ceramic bowl",
+    dessert:     "an elegant matte black premium round plate",
+    cocktails:   "a premium dark wooden coaster",
+    beer:        "a premium dark wooden coaster",
+    coffee:      "a premium dark wooden coaster",
+    smoothies:   "a premium dark wooden coaster",
+    "soft-drinks": "a premium dark wooden coaster",
+    drink:       "a premium dark wooden coaster",
+    starter:     "an elegant matte black premium oval plate",
+    panini:      "a premium wooden cutting board",
+    salad:       "an elegant matte black premium bowl",
+    main:        "an elegant matte black premium ceramic plate",
+    snack:       "an elegant matte black premium plate",
+    breakfast:   "an elegant matte black premium plate",
+    fusion:      "an elegant matte black premium plate",
+    "daily-special": "an elegant matte black premium plate",
   };
   const support = supportText[category] ?? "an elegant matte black premium plate";
+  const subjectWord = isDrink ? "beverage/container" : "dish";
 
-  return `Re-photograph this dish for a luxury Italian restaurant menu (Padella Bangkok).
+  return `Re-photograph the EXACT SUBJECT from the input image for a luxury menu (Padella Bangkok).
 
-REQUIREMENTS — strict:
+═══ CRITICAL RULE — READ FIRST ═══
+The input image contains a subject (food, drink, bottle, can, glass, cup, or whatever it is). You MUST reproduce THAT EXACT SUBJECT — pixel-for-pixel accurate: same shape, same colors, same brand/label, same liquid, same ingredients, same toppings, same everything.
+DO NOT substitute the subject with something else. DO NOT reinterpret. DO NOT "improve" or "correct" it. If the input is a soda can, the output MUST be that same soda can (same brand, same label, same color). If the input is a pizza, output that same pizza. If it is a bottle of water, output that same bottle. NEVER replace the subject with a different item.
+If you are unsure what the subject is, keep it as literally shown — do not guess a menu item.
+══════════════════════════════════
 
-1. Keep the food EXACTLY as in the input image: same ingredients, same shape, same colors, same toppings. Do NOT change, add, or remove anything from the food itself.
+Now apply this treatment AROUND the preserved subject:
 
-2. Replace the underlying surface with ${support}. The dish must sit fully inside the support — no part of the food is cropped.
+1. Place the ${subjectWord} on ${support}. The subject must sit fully inside the support — no cropping.
+2. Background: dark perforated metallic (matte black with regularly-spaced round holes, like a speaker grille), clearly visible on all 4 sides.
+3. Add the "PADELLA - bites and vibes -" logo centered at the bottom (cream text in a thin rectangular box, small padel racket icon left of "PADELLA", tiny Italian flag bar bottom-right of the box).
+4. Lighting: warm directional studio light from above-right, soft natural shadows, golden hour color temperature. Professional photography style.
+5. Composition: 3:2 landscape, subject centered, occupies ~55-65% of width, plenty of perforated background around it.
+6. Sharp focus on the subject, slight bokeh on background edges. Magazine-quality look.
 
-3. Place this plate/bowl/board on a dark perforated metallic background (matte black with regularly-spaced round holes, like a speaker grille). The perforated background must be clearly visible around the plate on all 4 sides.
-
-4. Add the "PADELLA - bites and vibes -" logo centered at the bottom of the image (cream/off-white text inside a thin rectangular box, with a small padel racket icon to the left of the word PADELLA, and a tiny Italian flag bar at the bottom-right of the box).
-
-5. Lighting: warm directional studio light from above-right, soft natural shadows below the plate, golden hour color temperature. Professional food photography style.
-
-6. Composition: 4:3 landscape, dish centered, plate occupies ~55-65% of width, plenty of dark perforated background visible around it.
-
-7. Sharp focus on the dish, slight bokeh on background edges. Premium magazine-quality look.
-
-ABSOLUTE: do not crop the food. Do not add other dishes. Do not change ingredients.`;
+ABSOLUTE: preserve the subject identity 1:1. Do not crop. Do not add other items. Do not change the subject.`;
 }
 
 async function loadBgTemplate(): Promise<Buffer | null> {

@@ -21,13 +21,13 @@ OUTPUT FORMAT — strict JSON, no markdown, no extra text:
   "confidence": "<high | medium | low>"
 }
 
-Dietary detection rules:
-- is_vegetarian: TRUE if NO visible meat, ham, sausage, salami, prosciutto, bacon, fish, seafood (cheese, eggs, milk are OK). FALSE otherwise.
-- is_vegan: TRUE if also no visible cheese, mozzarella, ricotta, mascarpone, milk, cream, butter, eggs, honey. FALSE otherwise.
-- is_spicy: TRUE if visible chili peppers, spicy salami (diavola/spianata), chili oil, sriracha-like sauces. FALSE otherwise.
-- is_gluten_free: TRUE only if NO pasta, pizza, bread, panini, pastry, cake, beer, batter. Salads/grilled meats/sushi/risotto/fruit are gluten-free. FALSE otherwise.
+Dietary detection rules — be DECISIVE, apply the tag whenever the dish clearly qualifies:
+- is_vegetarian: TRUE if you see NO meat, ham, sausage, salami, prosciutto, bacon, fish, seafood, tuna, anchovies. Cheese, eggs, milk, cream, butter, honey are ALL vegetarian. Salads, pizza margherita, pasta al pomodoro, caprese, tiramisu, fruit, most desserts, most cocktails, coffee, smoothies, soft drinks → TRUE.
+- is_vegan: TRUE if also no cheese/milk/cream/butter/eggs/honey. Plain fruit, pasta al pomodoro without cheese, most cocktails, most soft drinks, black coffee → TRUE.
+- is_spicy: TRUE if visible chili peppers, spicy salami (diavola/spianata), chili oil/flakes, sriracha, wasabi.
+- is_gluten_free: TRUE if NO pasta/pizza/bread/panini/pastry/cake/beer/batter/breadcrumbs. Salads, grilled meat/fish, risotto, fruit, cocktails, wine, spirits, soft drinks, coffee → TRUE.
 
-Be CONSERVATIVE: when in doubt, mark as FALSE.
+Rule of thumb: if the dish OBVIOUSLY qualifies (a green salad IS vegetarian; a Coke IS vegan + gluten-free), mark TRUE. Only mark FALSE when a disqualifying ingredient is visible or reasonably expected.
 
 Category mapping rules:
 - A pizza (round flatbread with toppings) → "pizza"
