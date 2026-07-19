@@ -101,11 +101,11 @@ async function composeBrandShot(subjectDataUrl: string): Promise<string> {
 
   const [bg, logoRaw, subject] = await Promise.all([
     loadImg("/brand-references/bg-template.png"),
-    loadImg("/logo-clean.png"),
+    loadImg("/FullLogo_NoBuffer.jpg"),
     loadImg(subjectDataUrl),
   ]);
 
-  // Estrai solo i pixel chiari (crema/bianco) dal logo — chromakey del verde di sfondo
+  // Chromakey: sfondo nero del logo → trasparente. Mantiene crema/bianco/verde/rosso (bandiera)
   const logoC = document.createElement("canvas");
   logoC.width = logoRaw.width;
   logoC.height = logoRaw.height;
@@ -116,13 +116,11 @@ async function composeBrandShot(subjectDataUrl: string): Promise<string> {
   for (let i = 0; i < ld.length; i += 4) {
     const r = ld[i], g = ld[i+1], b = ld[i+2];
     const maxCh = Math.max(r, g, b);
-    const minCh = Math.min(r, g, b);
-    const chroma = maxCh - minCh;
-    // Chiaro e desaturato (crema/bianco) → mantieni; verde saturo → trasparente
-    if (chroma > 40 && g > r && g > b) {
-      ld[i+3] = 0; // verde: trasparente
-    } else if (maxCh < 140) {
-      ld[i+3] = 0; // scuro: trasparente
+    // Nero puro o quasi → trasparente. Threshold soft per bordi anti-alias.
+    if (maxCh < 30) {
+      ld[i+3] = 0;
+    } else if (maxCh < 70) {
+      ld[i+3] = Math.round(((maxCh - 30) / 40) * ld[i+3]);
     }
   }
   lctx.putImageData(lid, 0, 0);
@@ -158,23 +156,14 @@ async function composeBrandShot(subjectDataUrl: string): Promise<string> {
   ctx.drawImage(subject, sx, sy, sw, sh);
   ctx.restore();
 
-  // Copri il logo sbagliato impresso nel bg-template con una banda scura, poi overlay
-  // del logo pulito estratto sopra
-  const bandY = H * 0.86;
-  const bandH = H * 0.14;
-  const grad = ctx.createLinearGradient(0, bandY, 0, bandY + bandH);
-  grad.addColorStop(0, "rgba(15,25,35,0.55)");
-  grad.addColorStop(1, "rgba(15,25,35,0.95)");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, bandY, W, bandH);
-
-  // Logo pulito centrato nella banda
-  const logoTargetW = W * 0.30;
+  // Logo Padella ufficiale (chromakey trasparente) — sovrapposto in basso.
+  // Il logo è abbastanza grande da coprire completamente quello sbagliato baked nel bg.
+  const logoTargetW = W * 0.28;
   const logoRatio = logoC.width / logoC.height;
   const logoW = logoTargetW;
   const logoH = logoW / logoRatio;
   const logoX = (W - logoW) / 2;
-  const logoY = H - logoH - 12;
+  const logoY = H - logoH - 20;
   ctx.drawImage(logoC, logoX, logoY, logoW, logoH);
 
   return canvas.toDataURL("image/jpeg", 0.9);
