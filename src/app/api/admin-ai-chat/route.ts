@@ -222,13 +222,20 @@ async function execTool(name: string, args: ToolCallArgs, sb: any): Promise<unkn
       return { ok: true, updated: data?.length ?? 0, items: data };
     }
     case "delete_menu_item": {
+      // Se manca id, usa fuzzy match sul nome (case-insensitive, substring)
+      if (!args.id && !args.name) return { error: "Provide id or name" };
       let q = sb.from("menu_items").delete();
-      if (args.id) q = q.eq("id", args.id as string);
-      else if (args.name) q = q.eq("name", args.name as string);
-      else return { error: "Provide id or name" };
+      if (args.id) {
+        q = q.eq("id", args.id as string);
+      } else {
+        // ilike per matching fuzzy: "coca" trova "Coca-Cola 1L Bottle"
+        q = q.ilike("name", `%${args.name as string}%`);
+      }
       const { data, error } = await q.select("id,name");
       if (error) return { error: error.message };
-      return { ok: true, deleted: data?.length ?? 0, items: data };
+      const count = data?.length ?? 0;
+      if (count === 0) return { ok: false, deleted: 0, error: `No item found matching "${args.name ?? args.id}"` };
+      return { ok: true, deleted: count, items: data };
     }
     case "get_site_config": {
       if (args.key) {
