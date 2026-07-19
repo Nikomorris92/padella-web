@@ -52,6 +52,64 @@ async function removeBackgroundClient(dataUrl: string): Promise<string> {
   });
 }
 
+/** Compositing 100% client-side: subject (bg-removed) su bg-template + logo Padella.
+ *  Zero AI, zero hallucination. Il soggetto è ESATTAMENTE quello che l'utente ha caricato. */
+async function composeBrandShot(subjectDataUrl: string): Promise<string> {
+  const loadImg = (src: string) => new Promise<HTMLImageElement>((res, rej) => {
+    const im = new Image();
+    im.crossOrigin = "anonymous";
+    im.onload = () => res(im);
+    im.onerror = rej;
+    im.src = src;
+  });
+
+  const [bg, logo, subject] = await Promise.all([
+    loadImg("/brand-references/bg-template.png"),
+    loadImg("/logo-clean.png"),
+    loadImg(subjectDataUrl),
+  ]);
+
+  const W = 1536, H = 1024;
+  const canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+
+  // Sfondo perforato (cover)
+  const bgRatio = bg.width / bg.height;
+  const cRatio = W / H;
+  let bw = W, bh = H, bx = 0, by = 0;
+  if (bgRatio > cRatio) { bh = H; bw = H * bgRatio; bx = (W - bw) / 2; }
+  else { bw = W; bh = W / bgRatio; by = (H - bh) / 2; }
+  ctx.drawImage(bg, bx, by, bw, bh);
+
+  // Soggetto centrato — max 62% larghezza, max 70% altezza
+  const maxSubW = W * 0.62;
+  const maxSubH = H * 0.70;
+  const sRatio = subject.width / subject.height;
+  let sw = maxSubW, sh = sw / sRatio;
+  if (sh > maxSubH) { sh = maxSubH; sw = sh * sRatio; }
+  const sx = (W - sw) / 2;
+  const sy = (H - sh) / 2 - H * 0.03; // leggero shift verso l'alto per far posto al logo
+  // Ombra morbida sotto
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 40;
+  ctx.shadowOffsetY = 20;
+  ctx.drawImage(subject, sx, sy, sw, sh);
+  ctx.restore();
+
+  // Logo in basso — max 22% larghezza
+  const maxLogoW = W * 0.22;
+  const lRatio = logo.width / logo.height;
+  const lw = maxLogoW;
+  const lh = lw / lRatio;
+  const lx = (W - lw) / 2;
+  const ly = H - lh - 30;
+  ctx.drawImage(logo, lx, ly, lw, lh);
+
+  return canvas.toDataURL("image/jpeg", 0.9);
+}
+
 const CATEGORY_EMOJI: Record<string, string> = {
   pasta:"🍝",pizza:"🍕",starter:"🫒",cocktails:"🍹",dessert:"🍮",
   main:"🥩",snack:"🥨",salad:"🥗",smoothies:"🥭",coffee:"☕",
@@ -340,24 +398,19 @@ export default function AdminMenuAIPage() {
             }
           } catch (e) { console.warn("Detect failed:", e); }
 
-          // STEP B: OpenAI compositing SOLO per il cibo. Per bevande/lattine/bottiglie
-          // gpt-image-2 tende a sostituire il soggetto → salta sempre se è una bevanda.
-          const DRINK_CATS = ["cocktails","beer","coffee","smoothies","soft-drinks","drink"];
-          const skipAI = detectIsBeverage || DRINK_CATS.includes(detectedCategory);
-          let aiData: { imageDataUrl?: string } = {};
-          if (skipAI) {
-            setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 90, text: "Beverage detected — keeping your original photo untouched." } : m));
-            aiData = { imageDataUrl: compressed };
-          } else {
-            setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 50, text: "OpenAI is composing the pro menu shot (~10s)..." } : m));
-            const aiRes = await fetch("/api/enhance-openai", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ imageBase64: compressed, category: detectedCategory, quality: "medium" }),
-            });
-            aiData = await aiRes.json();
-            if (!aiRes.ok || !aiData.imageDataUrl) throw new Error((aiData as { error?: string }).error || "Compositing error");
+          // STEP B: compositing 100% client-side (canvas). ZERO AI: il soggetto
+          // caricato dall'utente viene ripulito e messo sullo sfondo brand + logo.
+          // Deterministico, nessuna hallucination possibile.
+          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 40, text: "Removing background from your photo..." } : m));
+          let subjectCutout = compressed;
+          try {
+            subjectCutout = await removeBackgroundClient(compressed);
+          } catch (e) {
+            console.warn("bg-removal failed, using original:", e);
           }
+          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 75, text: "Composing brand shot..." } : m));
+          const composed = await composeBrandShot(subjectCutout);
+          const aiData: { imageDataUrl?: string } = { imageDataUrl: composed };
 
           const finalImg = aiData.imageDataUrl ?? compressed;
           setPendingProcessed(finalImg);
