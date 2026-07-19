@@ -52,6 +52,42 @@ async function removeBackgroundClient(dataUrl: string): Promise<string> {
   });
 }
 
+/** Post-processo: rimuove pixel bianchi/quasi-bianchi rimasti dopo bg-removal.
+ *  Utile quando il modello ML non ha ripulito bene lo sfondo bianco/liscio. */
+async function trimWhiteEdges(dataUrl: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = img.naturalWidth;
+      c.height = img.naturalHeight;
+      const ctx = c.getContext("2d");
+      if (!ctx) return reject(new Error("no ctx"));
+      ctx.drawImage(img, 0, 0);
+      const id = ctx.getImageData(0, 0, c.width, c.height);
+      const d = id.data;
+      // Rendi trasparenti i pixel molto chiari (bianco/quasi-bianco)
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i], g = d[i+1], b = d[i+2], a = d[i+3];
+        if (a < 10) continue;
+        // Bianco puro o quasi
+        if (r > 235 && g > 235 && b > 235) {
+          d[i+3] = 0;
+        } else if (r > 215 && g > 215 && b > 215) {
+          // Grigio molto chiaro: alpha soft
+          const luma = (r + g + b) / 3;
+          const t = (luma - 215) / 20; // 0..1
+          d[i+3] = Math.round(a * (1 - t));
+        }
+      }
+      ctx.putImageData(id, 0, 0);
+      resolve(c.toDataURL("image/png"));
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
+
 /** Compositing 100% client-side: subject (bg-removed) su bg-template + logo Padella.
  *  Zero AI, zero hallucination. Il soggetto è ESATTAMENTE quello che l'utente ha caricato. */
 async function composeBrandShot(subjectDataUrl: string): Promise<string> {
@@ -405,6 +441,8 @@ export default function AdminMenuAIPage() {
           let subjectCutout = compressed;
           try {
             subjectCutout = await removeBackgroundClient(compressed);
+            // Rimuovi residui bianchi che il modello ML può lasciare
+            subjectCutout = await trimWhiteEdges(subjectCutout);
           } catch (e) {
             console.warn("bg-removal failed, using original:", e);
           }
