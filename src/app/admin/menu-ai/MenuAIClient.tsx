@@ -148,14 +148,15 @@ async function composeBrandShot(subjectDataUrl: string): Promise<string> {
   else { bw = W; bh = W / bgSrcRatio; by = (H - bh) / 2; }
   ctx.drawImage(bg, 0, 0, bg.width, bgSrcH, bx, by, bw, bh);
 
-  // Soggetto centrato nell'intera canvas (niente più zona riservata al logo)
-  const maxSubW = W * 0.62;
-  const maxSubH = H * 0.80;
+  // Soggetto grande come nelle reference: ~50% larghezza / 85% altezza, posizionato basso.
+  const maxSubW = W * 0.55;
+  const maxSubH = H * 0.88;
   const sRatio = subject.width / subject.height;
   let sw = maxSubW, sh = sw / sRatio;
   if (sh > maxSubH) { sh = maxSubH; sw = sh * sRatio; }
   const sx = (W - sw) / 2;
-  const sy = (H - sh) / 2;
+  // Aggancia il soggetto in basso lasciando ~5% di margine dal fondo (come nelle reference)
+  const sy = H - sh - Math.round(H * 0.05);
   ctx.save();
   ctx.shadowColor = "rgba(0,0,0,0.55)";
   ctx.shadowBlur = 40;
