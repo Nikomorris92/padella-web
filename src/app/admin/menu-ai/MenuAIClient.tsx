@@ -100,10 +100,38 @@ async function composeBrandShot(subjectDataUrl: string): Promise<string> {
     im.src = src;
   });
 
-  const [bg, subject] = await Promise.all([
+  const [bg, subjectRaw] = await Promise.all([
     loadImg("/brand-references/bg-template.png"),
     loadImg(subjectDataUrl),
   ]);
+
+  // Croppa il soggetto al suo bounding box reale (rimuove padding trasparente)
+  // così quando lo posiziono sul bg riempie effettivamente lo spazio disponibile.
+  const tc = document.createElement("canvas");
+  tc.width = subjectRaw.width;
+  tc.height = subjectRaw.height;
+  const tctx = tc.getContext("2d")!;
+  tctx.drawImage(subjectRaw, 0, 0);
+  const tid = tctx.getImageData(0, 0, tc.width, tc.height);
+  const td = tid.data;
+  let minX = tc.width, minY = tc.height, maxX = 0, maxY = 0;
+  for (let y = 0; y < tc.height; y++) {
+    for (let x = 0; x < tc.width; x++) {
+      if (td[(y * tc.width + x) * 4 + 3] > 20) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  const bboxW = Math.max(1, maxX - minX + 1);
+  const bboxH = Math.max(1, maxY - minY + 1);
+  const cropC = document.createElement("canvas");
+  cropC.width = bboxW;
+  cropC.height = bboxH;
+  cropC.getContext("2d")!.drawImage(subjectRaw, minX, minY, bboxW, bboxH, 0, 0, bboxW, bboxH);
+  const subject = { width: bboxW, height: bboxH, canvas: cropC } as unknown as HTMLImageElement & { canvas: HTMLCanvasElement };
 
   const W = 1536, H = 1024;
   const canvas = document.createElement("canvas");
@@ -132,7 +160,7 @@ async function composeBrandShot(subjectDataUrl: string): Promise<string> {
   ctx.shadowColor = "rgba(0,0,0,0.55)";
   ctx.shadowBlur = 40;
   ctx.shadowOffsetY = 20;
-  ctx.drawImage(subject, sx, sy, sw, sh);
+  ctx.drawImage(subject.canvas, sx, sy, sw, sh);
   ctx.restore();
 
   // NESSUN LOGO: né overlay, né bg baked-in (croppato sopra).
