@@ -88,8 +88,9 @@ async function trimWhiteEdges(dataUrl: string): Promise<string> {
   });
 }
 
-/** Compositing 100% client-side: subject (bg-removed) su bg-template + logo Padella.
- *  Zero AI, zero hallucination. Il soggetto è ESATTAMENTE quello che l'utente ha caricato. */
+/** Compositing 100% client-side: subject (bg-removed) su bg-template SENZA logo.
+ *  Il bg-template ha un logo baked-in nel bottom → croppo la porzione bassa per escluderlo.
+ *  Nessun overlay logo. */
 async function composeBrandShot(subjectDataUrl: string): Promise<string> {
   const loadImg = (src: string) => new Promise<HTMLImageElement>((res, rej) => {
     const im = new Image();
@@ -99,56 +100,34 @@ async function composeBrandShot(subjectDataUrl: string): Promise<string> {
     im.src = src;
   });
 
-  const [bg, logoRaw, subject] = await Promise.all([
+  const [bg, subject] = await Promise.all([
     loadImg("/brand-references/bg-template.png"),
-    loadImg("/FullLogo_NoBuffer.jpg"),
     loadImg(subjectDataUrl),
   ]);
-
-  // Chromakey: sfondo nero del logo → trasparente. Mantiene crema/bianco/verde/rosso (bandiera)
-  const logoC = document.createElement("canvas");
-  logoC.width = logoRaw.width;
-  logoC.height = logoRaw.height;
-  const lctx = logoC.getContext("2d")!;
-  lctx.drawImage(logoRaw, 0, 0);
-  const lid = lctx.getImageData(0, 0, logoC.width, logoC.height);
-  const ld = lid.data;
-  for (let i = 0; i < ld.length; i += 4) {
-    const r = ld[i], g = ld[i+1], b = ld[i+2];
-    const maxCh = Math.max(r, g, b);
-    // Nero puro o quasi → trasparente. Threshold soft per bordi anti-alias.
-    if (maxCh < 30) {
-      ld[i+3] = 0;
-    } else if (maxCh < 70) {
-      ld[i+3] = Math.round(((maxCh - 30) / 40) * ld[i+3]);
-    }
-  }
-  lctx.putImageData(lid, 0, 0);
 
   const W = 1536, H = 1024;
   const canvas = document.createElement("canvas");
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext("2d")!;
 
-  // Sfondo perforato (cover)
-  const bgRatio = bg.width / bg.height;
+  // Sfondo perforato: uso solo il 82% superiore del bg-template (il resto ha il logo baked-in)
+  const BG_KEEP_RATIO = 0.82;
+  const bgSrcH = Math.floor(bg.height * BG_KEEP_RATIO);
+  const bgSrcRatio = bg.width / bgSrcH;
   const cRatio = W / H;
   let bw = W, bh = H, bx = 0, by = 0;
-  if (bgRatio > cRatio) { bh = H; bw = H * bgRatio; bx = (W - bw) / 2; }
-  else { bw = W; bh = W / bgRatio; by = (H - bh) / 2; }
-  ctx.drawImage(bg, bx, by, bw, bh);
+  if (bgSrcRatio > cRatio) { bh = H; bw = H * bgSrcRatio; bx = (W - bw) / 2; }
+  else { bw = W; bh = W / bgSrcRatio; by = (H - bh) / 2; }
+  ctx.drawImage(bg, 0, 0, bg.width, bgSrcH, bx, by, bw, bh);
 
-  // Soggetto centrato — lascia spazio al logo già impresso nel bg (~15% bottom)
+  // Soggetto centrato nell'intera canvas (niente più zona riservata al logo)
   const maxSubW = W * 0.62;
-  const maxSubH = H * 0.68;
+  const maxSubH = H * 0.80;
   const sRatio = subject.width / subject.height;
   let sw = maxSubW, sh = sw / sRatio;
   if (sh > maxSubH) { sh = maxSubH; sw = sh * sRatio; }
   const sx = (W - sw) / 2;
-  // Centra il soggetto nella zona SOPRA il logo (0..85% dell'altezza)
-  const safeZoneH = H * 0.85;
-  const sy = (safeZoneH - sh) / 2;
-  // Ombra morbida sotto
+  const sy = (H - sh) / 2;
   ctx.save();
   ctx.shadowColor = "rgba(0,0,0,0.55)";
   ctx.shadowBlur = 40;
@@ -156,16 +135,7 @@ async function composeBrandShot(subjectDataUrl: string): Promise<string> {
   ctx.drawImage(subject, sx, sy, sw, sh);
   ctx.restore();
 
-  // Logo Padella ufficiale (chromakey trasparente) — sovrapposto in basso.
-  // Il logo è abbastanza grande da coprire completamente quello sbagliato baked nel bg.
-  const logoTargetW = W * 0.28;
-  const logoRatio = logoC.width / logoC.height;
-  const logoW = logoTargetW;
-  const logoH = logoW / logoRatio;
-  const logoX = (W - logoW) / 2;
-  const logoY = H - logoH - 20;
-  ctx.drawImage(logoC, logoX, logoY, logoW, logoH);
-
+  // NESSUN LOGO: né overlay, né bg baked-in (croppato sopra).
   return canvas.toDataURL("image/jpeg", 0.9);
 }
 
@@ -409,11 +379,12 @@ export default function AdminMenuAIPage() {
       }, 150);
 
       try {
-        // NIENTE applyBrandFilter: la foto va salvata così com'è, senza modifiche.
+        const processed = await applyBrandFilter(raw);
         clearInterval(progressTimer);
+        setPendingProcessed(processed);
         setMsgs(prev => prev.map(m => m.id === loadingMsgId
           ? { ...m, uploadStage: "done", uploadProgress: 100,
-              text: `✅ **Photo uploaded!**\n\n✨ Analyzing dish name, category, dietary tags...` }
+              text: `✅ **Photo uploaded!** Classic filter applied.\n\n✨ Now composing on brand background...` }
           : m
         ));
 
@@ -456,10 +427,19 @@ export default function AdminMenuAIPage() {
             }
           } catch (e) { console.warn("Detect failed:", e); }
 
-          // NIENTE compositing / bg-removal / brand shot.
-          // La foto caricata dall'utente va salvata AS-IS (solo compressa).
-          // Il branding (logo, fascia) viene renderizzato dal frontend React sulla card.
-          const finalImg = compressed;
+          // Compositing client-side: bg-removal + soggetto su sfondo brand (bg-template).
+          // NON aggiunge logo (né overlay né quello baked nel bg-template — croppato).
+          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 40, text: "Removing background from your photo..." } : m));
+          let subjectCutout = compressed;
+          try {
+            subjectCutout = await removeBackgroundClient(compressed);
+            subjectCutout = await trimWhiteEdges(subjectCutout);
+          } catch (e) {
+            console.warn("bg-removal failed, using original:", e);
+          }
+          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 75, text: "Composing brand shot..." } : m));
+          const composed = await composeBrandShot(subjectCutout);
+          const finalImg = composed;
           setPendingProcessed(finalImg);
           const confEmoji = detectConf === "high" ? "🟢" : detectConf === "medium" ? "🟡" : "🟠";
           setMsgs(prev => prev.map(m => m.id === aiMsgId ? {
