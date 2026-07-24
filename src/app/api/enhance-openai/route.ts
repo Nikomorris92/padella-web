@@ -14,45 +14,61 @@ function buildPrompt(category: string): string {
   const isDrink = DRINK_CATEGORIES.has(category);
 
   const supportText: Record<string, string> = {
-    pizza:       "an elegant matte black premium round plate, slightly larger than the pizza",
-    pasta:       "an elegant matte black premium ceramic bowl",
-    dessert:     "an elegant matte black premium round plate",
-    cocktails:   "a premium dark wooden coaster",
-    beer:        "a premium dark wooden coaster",
-    coffee:      "a premium dark wooden coaster",
-    smoothies:   "a premium dark wooden coaster",
-    "soft-drinks": "a premium dark wooden coaster",
-    drink:       "a premium dark wooden coaster",
-    starter:     "an elegant matte black premium oval plate",
-    panini:      "a premium wooden cutting board",
-    salad:       "an elegant matte black premium bowl",
-    main:        "an elegant matte black premium ceramic plate",
-    snack:       "an elegant matte black premium plate",
-    breakfast:   "an elegant matte black premium plate",
-    fusion:      "an elegant matte black premium plate",
-    "daily-special": "an elegant matte black premium plate",
+    pizza:       "matte black ceramic plate",
+    pasta:       "matte black ceramic plate",
+    dessert:     "matte black ceramic plate",
+    cocktails:   "matte black round tray",
+    beer:        "matte black round tray",
+    coffee:      "matte black round tray",
+    smoothies:   "matte black round tray",
+    "soft-drinks": "matte black round tray",
+    drink:       "matte black round tray",
+    starter:     "matte black ceramic plate",
+    panini:      "wooden rectangular cutting board with handle",
+    salad:       "matte black ceramic plate",
+    main:        "matte black ceramic plate",
+    snack:       "matte black ceramic plate",
+    breakfast:   "matte black ceramic plate",
+    fusion:      "matte black ceramic plate",
+    "daily-special": "matte black ceramic plate",
   };
-  const support = supportText[category] ?? "an elegant matte black premium plate";
-  const subjectWord = isDrink ? "beverage/container" : "dish";
+  const support = supportText[category] ?? "matte black ceramic plate";
+  const subjectWord = isDrink ? "beverage container" : "food item";
 
-  return `Re-photograph the EXACT SUBJECT from the input image for a luxury menu (Padella Bangkok).
+  return `TASK: photographic compositing — background replacement.
 
-═══ CRITICAL RULE — READ FIRST ═══
-The input image contains a subject (food, drink, bottle, can, glass, cup, or whatever it is). You MUST reproduce THAT EXACT SUBJECT — pixel-for-pixel accurate: same shape, same colors, same brand/label, same liquid, same ingredients, same toppings, same everything.
-DO NOT substitute the subject with something else. DO NOT reinterpret. DO NOT "improve" or "correct" it. If the input is a soda can, the output MUST be that same soda can (same brand, same label, same color). If the input is a pizza, output that same pizza. If it is a bottle of water, output that same bottle. NEVER replace the subject with a different item.
-If you are unsure what the subject is, keep it as literally shown — do not guess a menu item.
-══════════════════════════════════
+The input image shows a real ${subjectWord} that has been photographed by the restaurant. This subject represents the actual product served to customers and is IMMUTABLE.
 
-Now apply this treatment AROUND the preserved subject:
+OPERATION TO PERFORM:
+- Preserve the original subject exactly as photographed
+- Replace only the background environment
+- Match lighting, shadow, and reflection to the new environment
+- Maintain color consistency of the subject
 
-1. Place the ${subjectWord} on ${support}. The subject must sit fully inside the support — no cropping.
-2. Background: dark perforated metallic (matte black with regularly-spaced round holes, like a speaker grille), clearly visible on all 4 sides.
-3. Add the "PADELLA - bites and vibes -" logo centered at the bottom (cream text in a thin rectangular box, small padel racket icon left of "PADELLA", tiny Italian flag bar bottom-right of the box).
-4. Lighting: warm directional studio light from above-right, soft natural shadows, golden hour color temperature. Professional photography style.
-5. Composition: 3:2 landscape, subject centered, occupies ~55-65% of width, plenty of perforated background around it.
-6. Sharp focus on the subject, slight bokeh on background edges. Magazine-quality look.
+STRICT PRESERVATION RULES (subject is immutable):
+- Keep identical shape, proportions, colors, textures of the subject
+- Keep identical ingredients, toppings, garnish, liquid, label, brand, packaging
+- Keep identical framing and position of the subject in the frame
+- Do not add, remove, or substitute any part of the subject
+- Do not reinterpret what the subject is
 
-ABSOLUTE: preserve the subject identity 1:1. Do not crop. Do not add other items. Do not change the subject.`;
+BACKGROUND REPLACEMENT:
+- New background: dark perforated metallic surface (matte black with regularly-spaced round holes, speaker grille pattern)
+- Under the subject: ${support} (as a base surface)
+- Lighting match: warm directional studio light from above-right, consistent with the new environment
+- Shadow matching: soft natural shadows cast by the subject on the new surface, consistent with the light direction
+- Reflection matching: subtle reflections on the supporting surface where physically appropriate
+- Color consistency: preserve original subject colors, only adjust ambient tint slightly to blend
+
+OUTPUT: 3:2 landscape composition, subject centered, sharp focus on subject, background clearly visible on all sides.
+
+NEGATIVE (do NOT do):
+- Do not generate a "luxury" or "gourmet" reinterpretation
+- Do not add stylistic elements not present in the input
+- Do not add any text, logo, watermark, or brand marking
+- Do not add other food items or ingredients
+- Do not "improve" or "beautify" the subject
+- Do not treat this as creative regeneration — this is technical compositing only`;
 }
 
 async function loadBgTemplate(): Promise<Buffer | null> {

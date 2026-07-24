@@ -507,19 +507,17 @@ export default function AdminMenuAIPage() {
             }
           } catch (e) { console.warn("Detect failed:", e); }
 
-          // Compositing client-side: bg-removal + soggetto su sfondo brand (bg-template).
-          // NON aggiunge logo (né overlay né quello baked nel bg-template — croppato).
-          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 40, text: "Removing background from your photo..." } : m));
-          let subjectCutout = compressed;
-          try {
-            subjectCutout = await removeBackgroundClient(compressed);
-            subjectCutout = await trimWhiteEdges(subjectCutout);
-          } catch (e) {
-            console.warn("bg-removal failed, using original:", e);
-          }
-          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 75, text: "Composing brand shot..." } : m));
-          const composed = await composeBrandShot(subjectCutout, detectedCategory);
-          const finalImg = composed;
+          // OpenAI photographic compositing: preserva il soggetto, sostituisce solo lo sfondo.
+          // Prompt tecnico (background replacement / lighting match / immutable subject) → basso rischio di reinterpretazione.
+          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 50, text: "OpenAI is compositing the background (~15s)..." } : m));
+          const aiRes = await fetch("/api/enhance-openai", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ imageBase64: compressed, category: detectedCategory, quality: "medium" }),
+          });
+          const aiData = await aiRes.json();
+          if (!aiRes.ok || !aiData.imageDataUrl) throw new Error(aiData.error || "OpenAI compositing failed");
+          const finalImg = aiData.imageDataUrl as string;
           setPendingProcessed(finalImg);
           const confEmoji = detectConf === "high" ? "🟢" : detectConf === "medium" ? "🟡" : "🟠";
           setMsgs(prev => prev.map(m => m.id === aiMsgId ? {
