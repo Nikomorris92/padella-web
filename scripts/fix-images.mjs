@@ -2,19 +2,19 @@
 // scripts/fix-images.mjs
 // -----------------------------------------------------------------------------
 // SPEC: rimuove la fascia inferiore dalle immagini prodotto Padella Bangkok
-// tramite inpainting Replicate (LaMa). Deterministico su rilevazione fascia,
-// AI SOLO per la ricostruzione dei pixel mancanti. Nessun crop, nessuna
-// coordinata hardcoded, nessun workaround Sharp.
+// tramite RICOSTRUZIONE DETERMINISTICA del pattern perforato.
+// NO AI. NO inpainting. Solo sharp: copia texture da zona pulita → tile su area mask
+// con feather sulla giunzione.
 //
 // Uso:
 //   npm run fix-images                             -> batch completo
-//   npm run fix-images -- --only=lipton            -> solo item con quel nome/id (case-insensitive)
-//   npm run fix-images -- --dry-run                -> download + detect + inpaint + validate, NO upload/DB
+//   npm run fix-images -- --only=lipton            -> solo item con quel nome/id
+//   npm run fix-images -- --dry-run                -> non fa upload/DB
+//   npm run fix-images -- --debug                  -> salva file locali in /debug
 //
-// ENV richieste (lette da .env.local):
+// ENV (.env.local):
 //   NEXT_PUBLIC_SUPABASE_URL
 //   SUPABASE_SERVICE_KEY
-//   REPLICATE_API_TOKEN
 // -----------------------------------------------------------------------------
 
 import sharp from "sharp";
@@ -23,7 +23,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 // ============================================================================
-// ENV LOADER
+// ENV
 // ============================================================================
 async function loadEnv() {
   const envPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".env.local");
@@ -31,34 +31,34 @@ async function loadEnv() {
     const content = await fs.readFile(envPath, "utf-8");
     for (const line of content.split("\n")) {
       const m = line.match(/^([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/i);
-      if (m && !process.env[m[1]]) {
-        process.env[m[1]] = m[2].replace(/^["']|["']$/g, "").trim();
-      }
+      if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "").trim();
     }
-  } catch {
-    /* .env.local absent or unreadable: fall back to process.env */
-  }
+  } catch {}
 }
 await loadEnv();
 
 const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_KEY;
-const REPLICATE_TOKEN = process.env.REPLICATE_API_TOKEN;
 const BUCKET = "menu-photos";
-const BACKUP_PREFIX = "_backup"; // path prefix in same bucket
+const BACKUP_PREFIX = "_backup";
 
-// Maschera geometrica fissa: bottom 30% dell'immagine (proporzionale, scala con dimensioni).
-// Tutte le 93 immagini sono state generate dallo stesso template → posizione fascia identica.
-// Nessun detection colore.
+// Fascia da sostituire: bottom 30% dell'immagine.
 const MASK_BOTTOM_RATIO = 0.30;
+// Tile texture-source: piccolo quadrato di pattern PURO dall'angolo in alto a sinistra.
+// Là c'è solo lo sfondo perforato (il soggetto è centrato). Il tile viene poi tilato H×V.
+const TILE_SOURCE_LEFT_RATIO = 0.02;
+const TILE_SOURCE_TOP_RATIO = 0.05;
+const TILE_SOURCE_SIZE_RATIO = 0.18;  // 18% di W × 18% di H → tile abbastanza grande da non ripetersi visibilmente
+// Feather sulla giunzione tra zona preservata e zona ricostruita
+const FEATHER_HEIGHT_PX = 60;
 
-if (!SB_URL || !SB_KEY || !REPLICATE_TOKEN) {
-  console.error("[FATAL] Missing env: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_KEY, REPLICATE_API_TOKEN");
+if (!SB_URL || !SB_KEY) {
+  console.error("[FATAL] Missing env: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_KEY");
   process.exit(1);
 }
 
 // ============================================================================
-// LOGGER (per-item structured log)
+// LOGGER
 // ============================================================================
 const logger = {
   info: (m) => console.log(`[INFO ] ${m}`),
@@ -112,7 +112,6 @@ async function updateItemImageUrl(id, url) {
   if (!r.ok) throw new Error(`DB update ${r.status}`);
 }
 
-// Backup obbligatorio prima di ogni upload: copia l'originale in _backup/<timestamp>/<path>
 async function backupOriginal(pathInBucket, originalBuf, runTimestamp) {
   const backupPath = `${BACKUP_PREFIX}/${runTimestamp}/${pathInBucket}`;
   await uploadImage(backupPath, originalBuf, "image/jpeg");
@@ -120,128 +119,119 @@ async function backupOriginal(pathInBucket, originalBuf, runTimestamp) {
 }
 
 // ============================================================================
-// GENERATE MASK — geometrica fissa
-// Rettangolo che copre il bottom MASK_BOTTOM_RATIO dell'immagine.
-// Nessun detection, nessuna dipendenza dai pixel. Ratio proporzionale.
+// RECONSTRUCT
+// Deterministico: campiona strip perforato pulito dall'alto, tila sull'area mask,
+// feather sulla giunzione. Nessuna AI.
 // ============================================================================
-async function generateMask(imgBuf) {
+async function reconstruct(imgBuf) {
   const meta = await sharp(imgBuf).metadata();
   const W = meta.width, H = meta.height;
-  if (!W || !H) return null;
+  if (!W || !H) throw new Error("no dims");
 
-  const bandStartY = Math.floor(H * (1 - MASK_BOTTOM_RATIO));
-  const mask = Buffer.alloc(W * H, 0);
-  for (let y = bandStartY; y < H; y++) {
-    for (let x = 0; x < W; x++) mask[y * W + x] = 255;
+  const maskStartY = Math.floor(H * (1 - MASK_BOTTOM_RATIO));
+  const areaHeight = H - maskStartY;
+
+  // 1) Estrai TILE quadrato di pattern PURO dall'angolo top-left (dove non c'è il soggetto)
+  const tileSize = Math.floor(Math.min(W, H) * TILE_SOURCE_SIZE_RATIO);
+  const tileLeft = Math.floor(W * TILE_SOURCE_LEFT_RATIO);
+  const tileTop = Math.floor(H * TILE_SOURCE_TOP_RATIO);
+  if (tileSize <= 0) throw new Error("invalid tile size");
+  const srcTop = tileTop, srcBot = tileTop + tileSize;
+
+  const tileBuf = await sharp(imgBuf)
+    .extract({ left: tileLeft, top: tileTop, width: tileSize, height: tileSize })
+    .toBuffer();
+
+  // 2) Tila il quadrato orizzontalmente E verticalmente per coprire l'intera area
+  const cols = Math.ceil(W / tileSize);
+  const rows = Math.ceil(areaHeight / tileSize);
+  const composites = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      composites.push({ input: tileBuf, top: r * tileSize, left: c * tileSize });
+    }
   }
-  const maskPng = await sharp(mask, { raw: { width: W, height: H, channels: 1 } }).png().toBuffer();
-  return { maskPng, bandStartY, W, H };
-}
+  const tiledFull = await sharp({
+    create: { width: cols * tileSize, height: rows * tileSize, channels: 3, background: { r: 0, g: 0, b: 0 } },
+  }).composite(composites).png().toBuffer();
 
-// ============================================================================
-// INPAINT (Replicate LaMa)
-// Verifica preliminare esistenza modello con checkModelAvailable().
-// Timeout 120s per polling.
-// ============================================================================
-const REPLICATE_MODEL = "zylim0702/remove-object";
-const REPLICATE_POLL_INTERVAL = 2000; // ms
-const REPLICATE_TIMEOUT = 120_000;    // 120s max per immagine
+  const fillPatch = await sharp(tiledFull)
+    .extract({ left: 0, top: 0, width: W, height: areaHeight })
+    .toBuffer();
 
-let CACHED_VERSION_ID = null;
-async function checkModelAvailable() {
-  const r = await fetch(`https://api.replicate.com/v1/models/${REPLICATE_MODEL}`, {
-    headers: { Authorization: `Bearer ${REPLICATE_TOKEN}` },
-  });
-  if (r.status === 404) throw new Error(`Modello Replicate "${REPLICATE_MODEL}" non trovato (404). Aggiornare REPLICATE_MODEL.`);
-  if (!r.ok) throw new Error(`Verifica modello ${r.status}: ${(await r.text()).slice(0, 200)}`);
-  const meta = await r.json();
-  CACHED_VERSION_ID = meta?.latest_version?.id;
-  if (!CACHED_VERSION_ID) throw new Error(`Nessuna latest_version per ${REPLICATE_MODEL}`);
-  return meta;
-}
-
-function toDataUrl(buf, mime) {
-  return `data:${mime};base64,${buf.toString("base64")}`;
-}
-
-async function inpaint(imgBuf, maskPng) {
-  const imgDataUrl = toDataUrl(imgBuf, "image/jpeg");
-  const maskDataUrl = toDataUrl(maskPng, "image/png");
-
-  const startRes = await fetch(`https://api.replicate.com/v1/predictions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${REPLICATE_TOKEN}`,
-      "Content-Type": "application/json",
-      Prefer: "wait=60",
-    },
-    body: JSON.stringify({ version: CACHED_VERSION_ID, input: { image: imgDataUrl, mask: maskDataUrl } }),
-  });
-  if (!startRes.ok) throw new Error(`Replicate start ${startRes.status}: ${(await startRes.text()).slice(0, 300)}`);
-  let pred = await startRes.json();
-
-  const t0 = Date.now();
-  while (pred.status === "starting" || pred.status === "processing") {
-    if (Date.now() - t0 > REPLICATE_TIMEOUT) throw new Error("Replicate timeout (>120s)");
-    await new Promise((r) => setTimeout(r, REPLICATE_POLL_INTERVAL));
-    const pr = await fetch(pred.urls.get, { headers: { Authorization: `Bearer ${REPLICATE_TOKEN}` } });
-    if (!pr.ok) throw new Error(`Replicate poll ${pr.status}`);
-    pred = await pr.json();
+  // 3) Feather: crea una maschera alpha che fa fade smooth sulla giunzione superiore.
+  //    Fill patch avrà alpha=0 nei primi FEATHER_HEIGHT_PX (blend graduale col fondo),
+  //    poi alpha=255 nel resto. Sotto la giunzione texture 100% opaca.
+  const featherH = Math.min(FEATHER_HEIGHT_PX, Math.floor(areaHeight / 3));
+  const alphaBuf = Buffer.alloc(W * areaHeight);
+  for (let y = 0; y < areaHeight; y++) {
+    let a;
+    if (y < featherH) {
+      a = Math.round((y / featherH) * 255); // 0 → 255 smooth
+    } else {
+      a = 255;
+    }
+    for (let x = 0; x < W; x++) alphaBuf[y * W + x] = a;
   }
-  if (pred.status !== "succeeded") throw new Error(`Replicate ${pred.status}: ${pred.error ?? "unknown"}`);
+  const alphaPng = await sharp(alphaBuf, { raw: { width: W, height: areaHeight, channels: 1 } }).png().toBuffer();
 
-  const outputUrl = Array.isArray(pred.output) ? pred.output[0] : pred.output;
-  if (!outputUrl) throw new Error("Replicate returned no output URL");
-  const outRes = await fetch(outputUrl);
-  if (!outRes.ok) throw new Error(`Replicate output download ${outRes.status}`);
-  return Buffer.from(await outRes.arrayBuffer());
+  const fillPatchRgba = await sharp(fillPatch)
+    .ensureAlpha()
+    .joinChannel(alphaPng)
+    .png()
+    .toBuffer();
+
+  // 4) Composite finale: sovrappone la patch alla foto originale, top=maskStartY
+  const composed = await sharp(imgBuf)
+    .composite([{ input: fillPatchRgba, top: maskStartY, left: 0 }])
+    .jpeg({ quality: 90 })
+    .toBuffer();
+
+  return { composed, maskStartY, areaHeight, srcTop, srcBot, W, H };
 }
 
 // ============================================================================
-// VALIDATE — 6 controlli
-// - file non vuoto
-// - MIME immagine decodificabile
-// - decodifica sharp OK
-// - dimensioni identiche all'originale (o riscalate a match)
-// - canali validi (3 o 4)
-// - output ≠ maschera (compare mean pixel value against mask)
-// - non nero/bianco
+// VALIDATE
 // ============================================================================
-async function validate(outBuf, origW, origH, maskPng) {
-  if (!outBuf || outBuf.length < 100) return { ok: false, reason: "output vuoto o troppo piccolo" };
+async function validate(outBuf, origW, origH) {
+  if (!outBuf || outBuf.length < 100) return { ok: false, reason: "output vuoto" };
   let meta;
-  try {
-    meta = await sharp(outBuf).metadata();
-  } catch (e) {
-    return { ok: false, reason: `decodifica fallita: ${e.message}` };
-  }
-  if (!meta.format || !["jpeg","png","webp","jpg"].includes(meta.format)) {
-    return { ok: false, reason: `MIME non valido: ${meta.format}` };
-  }
-  if (!meta.width || !meta.height) return { ok: false, reason: "dimensioni assenti" };
-  if (!meta.channels || (meta.channels !== 3 && meta.channels !== 4)) {
-    return { ok: false, reason: `canali non validi: ${meta.channels}` };
-  }
+  try { meta = await sharp(outBuf).metadata(); }
+  catch (e) { return { ok: false, reason: `decodifica fallita: ${e.message}` }; }
+  if (!meta.format || !["jpeg","png","webp","jpg"].includes(meta.format)) return { ok: false, reason: `MIME: ${meta.format}` };
+  if (meta.width !== origW || meta.height !== origH) return { ok: false, reason: `dim ${meta.width}x${meta.height} vs ${origW}x${origH}` };
+  if (!meta.channels || (meta.channels !== 3 && meta.channels !== 4)) return { ok: false, reason: `canali: ${meta.channels}` };
 
-  let finalBuf = outBuf;
-  if (meta.width !== origW || meta.height !== origH) {
-    // Resize deterministico per matchare originale
-    finalBuf = await sharp(outBuf).resize(origW, origH, { fit: "fill" }).jpeg({ quality: 90 }).toBuffer();
-  }
-
-  const stats = await sharp(finalBuf).stats();
+  const stats = await sharp(outBuf).stats();
   const meanRGB = stats.channels.slice(0, 3).map((c) => c.mean);
   const avg = (meanRGB[0] + meanRGB[1] + meanRGB[2]) / 3;
-  if (avg < 5)   return { ok: false, reason: "output quasi nero" };
-  if (avg > 250) return { ok: false, reason: "output quasi bianco" };
-
-  // Confronto grossolano output vs mask: la mask è monocromatica (0 o 255 su singolo canale).
-  // Se l'output ha stats simili alla mask (media ≈ 255 o ≈ 0 con std ≈ 0), è la mask.
+  if (avg < 5) return { ok: false, reason: "output nero" };
+  if (avg > 250) return { ok: false, reason: "output bianco" };
   const stdRGB = stats.channels.slice(0, 3).map((c) => c.stdev);
   const stdAvg = (stdRGB[0] + stdRGB[1] + stdRGB[2]) / 3;
-  if (stdAvg < 2) return { ok: false, reason: "output senza varianza (probabile mask)" };
+  if (stdAvg < 2) return { ok: false, reason: "output senza varianza" };
+  return { ok: true, buf: outBuf };
+}
 
-  return { ok: true, buf: finalBuf };
+// ============================================================================
+// DEBUG
+// ============================================================================
+const DEBUG_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "debug");
+async function saveDebugFiles(itemName, originalBuf, resultBuf, info) {
+  await fs.mkdir(DEBUG_DIR, { recursive: true });
+  const slug = itemName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  await fs.writeFile(path.join(DEBUG_DIR, `${slug}-original.jpg`), originalBuf);
+  await fs.writeFile(path.join(DEBUG_DIR, `${slug}-result.jpg`), resultBuf);
+
+  // Overlay: originale con rettangoli rossi (mask area) e verde (texture source)
+  const { W, H, maskStartY, srcTop, srcBot } = info;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+    <rect x="0" y="${maskStartY}" width="${W}" height="${H - maskStartY}" fill="red" fill-opacity="0.3"/>
+    <rect x="0" y="${srcTop}" width="${W}" height="${srcBot - srcTop}" fill="lime" fill-opacity="0.25"/>
+  </svg>`;
+  const overlay = await sharp(originalBuf).composite([{ input: Buffer.from(svg), top: 0, left: 0 }]).jpeg({ quality: 85 }).toBuffer();
+  await fs.writeFile(path.join(DEBUG_DIR, `${slug}-overlay.jpg`), overlay);
+  logger.itemField("Debug", DEBUG_DIR);
 }
 
 // ============================================================================
@@ -254,27 +244,18 @@ async function processItem(it, opts, runTimestamp) {
   const imgBuf = await downloadImage(it.image);
   logger.itemField("Downloaded", `${imgBuf.length}B`);
 
-  const detected = await generateMask(imgBuf);
-  if (!detected) {
-    logger.warn(`SKIP ${it.name}: immagine non decodificabile`);
-    return { status: "skipped", reason: "image unreadable" };
-  }
-  const { maskPng, bandStartY, W, H } = detected;
-  logger.itemField("Mask (geometric)", `bottom ${Math.round(MASK_BOTTOM_RATIO*100)}% = ${H - bandStartY}px (from y=${bandStartY})`);
-
-  let outRaw;
+  let recon;
   try {
-    outRaw = await inpaint(imgBuf, maskPng);
-    logger.itemField("Replicate", "SUCCESS");
+    recon = await reconstruct(imgBuf);
+    logger.itemField("Reconstruct", `mask=${recon.H - recon.maskStartY}px, tex=${recon.srcBot - recon.srcTop}px`);
   } catch (e) {
-    logger.itemField("Replicate", `FAILED (${e.message})`);
-    if (opts.debug) await saveDebugFiles(it.name, imgBuf, maskPng, null, W, H);
-    return { status: "failed", reason: `replicate: ${e.message}` };
+    logger.itemField("Reconstruct", `FAILED (${e.message})`);
+    return { status: "failed", reason: `reconstruct: ${e.message}` };
   }
 
-  if (opts.debug) await saveDebugFiles(it.name, imgBuf, maskPng, outRaw, W, H);
+  if (opts.debug) await saveDebugFiles(it.name, imgBuf, recon.composed, recon);
 
-  const v = await validate(outRaw, W, H, maskPng);
+  const v = await validate(recon.composed, recon.W, recon.H);
   logger.itemField("Validation", v.ok ? "PASS" : `FAILED (${v.reason})`);
   if (!v.ok) return { status: "failed", reason: `validation: ${v.reason}` };
 
@@ -283,15 +264,12 @@ async function processItem(it, opts, runTimestamp) {
     return { status: "processed", dryRun: true };
   }
 
-  // BACKUP obbligatorio prima di sovrascrivere
   const backupPath = await backupOriginal(it.image_path, imgBuf, runTimestamp);
   logger.itemField("Backup", backupPath);
-
   await uploadImage(it.image_path, v.buf);
   const newUrl = `${SB_URL}/storage/v1/object/public/${BUCKET}/${it.image_path}?v=${Date.now()}`;
   await updateItemImageUrl(it.id, newUrl);
   logger.itemField("Upload", "SUCCESS");
-
   return { status: "processed" };
 }
 
@@ -306,36 +284,6 @@ function parseArgs() {
   return { only, dryRun, debug };
 }
 
-const DEBUG_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "debug");
-
-async function saveDebugFiles(itemName, originalBuf, maskPng, resultBuf, W, H) {
-  await fs.mkdir(DEBUG_DIR, { recursive: true });
-  const slug = itemName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  // 1) originale
-  await fs.writeFile(path.join(DEBUG_DIR, `${slug}-original.jpg`), originalBuf);
-  // 2) mask
-  await fs.writeFile(path.join(DEBUG_DIR, `${slug}-mask.png`), maskPng);
-  // 3) overlay: originale + mask in rosso semi-trasparente.
-  // maskPng è single-channel (0=nero, 255=bianco). Costruiamo un'immagine RGBA rossa
-  // dove alpha = mask (così solo dove mask=255 vediamo il rosso).
-  const maskRaw = await sharp(maskPng).greyscale().raw().toBuffer({ resolveWithObject: true });
-  const alphaData = maskRaw.data;
-  const rgbaData = Buffer.alloc(alphaData.length * 4);
-  for (let i = 0; i < alphaData.length; i++) {
-    const a = Math.round(alphaData[i] * 0.6); // 60% max opacity
-    rgbaData[i*4] = 255;
-    rgbaData[i*4+1] = 0;
-    rgbaData[i*4+2] = 0;
-    rgbaData[i*4+3] = a;
-  }
-  const redOverlay = await sharp(rgbaData, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer();
-  const overlay = await sharp(originalBuf).composite([{ input: redOverlay, top: 0, left: 0 }]).jpeg({ quality: 85 }).toBuffer();
-  await fs.writeFile(path.join(DEBUG_DIR, `${slug}-overlay.jpg`), overlay);
-  // 4) risultato inpaint (raw dal servizio, prima del resize)
-  if (resultBuf) await fs.writeFile(path.join(DEBUG_DIR, `${slug}-result.jpg`), resultBuf);
-  logger.itemField("Debug files", DEBUG_DIR);
-}
-
 function makeRunTimestamp() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, "0");
@@ -346,23 +294,10 @@ async function main() {
   const opts = parseArgs();
   const runTimestamp = makeRunTimestamp();
   logger.info(`Start (dry-run=${opts.dryRun}, only=${opts.only ?? "all"}, run=${runTimestamp})`);
-
-  // Verifica preliminare modello Replicate
-  try {
-    const modelInfo = await checkModelAvailable();
-    logger.info(`Modello Replicate OK: ${modelInfo.owner}/${modelInfo.name}`);
-  } catch (e) {
-    logger.err(e.message);
-    process.exit(1);
-  }
-
   const items = await fetchAllItems();
   const onlyLower = opts.only?.toLowerCase();
   const target = onlyLower
-    ? items.filter((i) =>
-        i.id.toLowerCase() === onlyLower ||
-        i.name.toLowerCase().includes(onlyLower)
-      )
+    ? items.filter((i) => i.id.toLowerCase() === onlyLower || i.name.toLowerCase().includes(onlyLower))
     : items;
   logger.info(`${target.length} item(s) da processare`);
   if (target.length === 0) { logger.warn("Nessun item selezionato"); process.exit(0); }
@@ -387,10 +322,7 @@ async function main() {
   console.log(`Skipped:   ${skipped}`);
   console.log(`Failed:    ${failed}`);
   if (!opts.dryRun && processed > 0) console.log(`Backup dir: ${BACKUP_PREFIX}/${runTimestamp}/`);
-  if (errors.length) {
-    console.log(`\n──── DETTAGLI ────`);
-    for (const e of errors) console.log(e);
-  }
+  if (errors.length) { console.log(`\n──── DETTAGLI ────`); for (const e of errors) console.log(e); }
 }
 
 main().catch((e) => { console.error("[FATAL]", e); process.exit(1); });

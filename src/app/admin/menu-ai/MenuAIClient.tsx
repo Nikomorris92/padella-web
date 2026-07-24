@@ -409,12 +409,11 @@ export default function AdminMenuAIPage() {
       }, 150);
 
       try {
-        const processed = await applyBrandFilter(raw);
+        // NIENTE applyBrandFilter: la foto va salvata così com'è, senza modifiche.
         clearInterval(progressTimer);
-        setPendingProcessed(processed);
         setMsgs(prev => prev.map(m => m.id === loadingMsgId
           ? { ...m, uploadStage: "done", uploadProgress: 100,
-              text: `✅ **Photo uploaded!** Classic filter applied.\n\n✨ Now calling AI to compose the professional menu shot...` }
+              text: `✅ **Photo uploaded!**\n\n✨ Analyzing dish name, category, dietary tags...` }
           : m
         ));
 
@@ -457,23 +456,10 @@ export default function AdminMenuAIPage() {
             }
           } catch (e) { console.warn("Detect failed:", e); }
 
-          // STEP B: compositing 100% client-side (canvas). ZERO AI: il soggetto
-          // caricato dall'utente viene ripulito e messo sullo sfondo brand + logo.
-          // Deterministico, nessuna hallucination possibile.
-          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 40, text: "Removing background from your photo..." } : m));
-          let subjectCutout = compressed;
-          try {
-            subjectCutout = await removeBackgroundClient(compressed);
-            // Rimuovi residui bianchi che il modello ML può lasciare
-            subjectCutout = await trimWhiteEdges(subjectCutout);
-          } catch (e) {
-            console.warn("bg-removal failed, using original:", e);
-          }
-          setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 75, text: "Composing brand shot..." } : m));
-          const composed = await composeBrandShot(subjectCutout);
-          const aiData: { imageDataUrl?: string } = { imageDataUrl: composed };
-
-          const finalImg = aiData.imageDataUrl ?? compressed;
+          // NIENTE compositing / bg-removal / brand shot.
+          // La foto caricata dall'utente va salvata AS-IS (solo compressa).
+          // Il branding (logo, fascia) viene renderizzato dal frontend React sulla card.
+          const finalImg = compressed;
           setPendingProcessed(finalImg);
           const confEmoji = detectConf === "high" ? "🟢" : detectConf === "medium" ? "🟡" : "🟠";
           setMsgs(prev => prev.map(m => m.id === aiMsgId ? {
