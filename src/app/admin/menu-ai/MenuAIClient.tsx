@@ -88,10 +88,37 @@ async function trimWhiteEdges(dataUrl: string): Promise<string> {
   });
 }
 
-/** Compositing 100% client-side: subject (bg-removed) su bg-template SENZA logo.
- *  Il bg-template ha un logo baked-in nel bottom → croppo la porzione bassa per escluderlo.
- *  Nessun overlay logo. */
-async function composeBrandShot(subjectDataUrl: string): Promise<string> {
+/** Restituisce il file support PNG in base alla categoria detected. */
+function supportForCategory(category: string): string | null {
+  const cat = category.toLowerCase();
+  if (["cocktails", "beer", "coffee", "smoothies", "soft-drinks", "drink"].includes(cat)) return "/brand-references/tray-black.png";
+  if (cat === "panini") return "/brand-references/board-wood.png";
+  if (["pasta","pizza","starter","main","salad","dessert","snack","breakfast","fusion","daily-special"].includes(cat)) return "/brand-references/plate-black.png";
+  return "/brand-references/plate-black.png";
+}
+
+/** Chromakey del bianco: rende trasparenti i pixel bianchi/quasi-bianchi. */
+function chromakeyWhite(img: HTMLImageElement): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.width = img.naturalWidth;
+  c.height = img.naturalHeight;
+  const ctx = c.getContext("2d")!;
+  ctx.drawImage(img, 0, 0);
+  const id = ctx.getImageData(0, 0, c.width, c.height);
+  const d = id.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i+1], b = d[i+2];
+    const minCh = Math.min(r, g, b);
+    if (minCh > 240) d[i+3] = 0;
+    else if (minCh > 220) d[i+3] = Math.round(d[i+3] * (1 - (minCh - 220) / 20));
+  }
+  ctx.putImageData(id, 0, 0);
+  return c;
+}
+
+/** Compositing 100% client-side: subject (bg-removed) su bg-template + supporto (piatto/vassoio/tagliere).
+ *  Nessun logo. Il supporto viene scelto in base alla categoria. */
+async function composeBrandShot(subjectDataUrl: string, category: string = "starter"): Promise<string> {
   const loadImg = (src: string) => new Promise<HTMLImageElement>((res, rej) => {
     const im = new Image();
     im.crossOrigin = "anonymous";
@@ -100,10 +127,13 @@ async function composeBrandShot(subjectDataUrl: string): Promise<string> {
     im.src = src;
   });
 
-  const [bg, subjectRaw] = await Promise.all([
+  const supportPath = supportForCategory(category);
+  const [bg, subjectRaw, supportRaw] = await Promise.all([
     loadImg("/brand-references/bg-template.png"),
     loadImg(subjectDataUrl),
+    supportPath ? loadImg(supportPath) : Promise.resolve(null as unknown as HTMLImageElement),
   ]);
+  const supportCanvas = supportRaw ? chromakeyWhite(supportRaw) : null;
 
   // Croppa il soggetto al suo bounding box reale (rimuove padding trasparente)
   // così quando lo posiziono sul bg riempie effettivamente lo spazio disponibile.
@@ -148,19 +178,40 @@ async function composeBrandShot(subjectDataUrl: string): Promise<string> {
   else { bw = W; bh = W / bgSrcRatio; by = (H - bh) / 2; }
   ctx.drawImage(bg, 0, 0, bg.width, bgSrcH, bx, by, bw, bh);
 
-  // Soggetto grande come nelle reference: ~50% larghezza / 85% altezza, posizionato basso.
-  const maxSubW = W * 0.55;
-  const maxSubH = H * 0.88;
+  // 1) Disegna il SUPPORTO (piatto/vassoio/tagliere) come base
+  if (supportCanvas) {
+    const supTargetW = W * 0.55;
+    const supRatio = supportCanvas.width / supportCanvas.height;
+    const supW = supTargetW;
+    const supH = supW / supRatio;
+    const supX = (W - supW) / 2;
+    // Ancora il supporto verso il basso, lasciando ~4% margine dal fondo
+    const supY = H - supH - Math.round(H * 0.04);
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.65)";
+    ctx.shadowBlur = 50;
+    ctx.shadowOffsetY = 25;
+    ctx.drawImage(supportCanvas, supX, supY, supW, supH);
+    ctx.restore();
+  }
+
+  // 2) Disegna il SOGGETTO sopra il supporto
+  //    Se c'è supporto: soggetto più piccolo (per starci dentro), centrato sopra
+  //    Altrimenti: soggetto grande e centrato
+  const hasSupport = !!supportCanvas;
+  const maxSubW = W * (hasSupport ? 0.40 : 0.55);
+  const maxSubH = H * (hasSupport ? 0.72 : 0.88);
   const sRatio = subject.width / subject.height;
   let sw = maxSubW, sh = sw / sRatio;
   if (sh > maxSubH) { sh = maxSubH; sw = sh * sRatio; }
   const sx = (W - sw) / 2;
-  // Aggancia il soggetto in basso lasciando ~5% di margine dal fondo (come nelle reference)
-  const sy = H - sh - Math.round(H * 0.05);
+  const sy = hasSupport
+    ? H - sh - Math.round(H * 0.10)  // soggetto poggiato sul supporto: appoggia ~10% dal fondo
+    : H - sh - Math.round(H * 0.05);
   ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.55)";
-  ctx.shadowBlur = 40;
-  ctx.shadowOffsetY = 20;
+  ctx.shadowColor = "rgba(0,0,0,0.45)";
+  ctx.shadowBlur = 30;
+  ctx.shadowOffsetY = 15;
   ctx.drawImage(subject.canvas, sx, sy, sw, sh);
   ctx.restore();
 
@@ -467,7 +518,7 @@ export default function AdminMenuAIPage() {
             console.warn("bg-removal failed, using original:", e);
           }
           setMsgs(prev => prev.map(m => m.id === aiMsgId ? { ...m, uploadProgress: 75, text: "Composing brand shot..." } : m));
-          const composed = await composeBrandShot(subjectCutout);
+          const composed = await composeBrandShot(subjectCutout, detectedCategory);
           const finalImg = composed;
           setPendingProcessed(finalImg);
           const confEmoji = detectConf === "high" ? "🟢" : detectConf === "medium" ? "🟡" : "🟠";
