@@ -97,7 +97,7 @@ export default function AdminMenuPage() {
                 <th className="text-left p-4 text-padella-cream/50 text-xs font-semibold tracking-wide uppercase hidden md:table-cell">Category</th>
                 <th className="text-left p-4 text-padella-cream/50 text-xs font-semibold tracking-wide uppercase">Price</th>
                 <th className="text-left p-4 text-padella-cream/50 text-xs font-semibold tracking-wide uppercase hidden sm:table-cell">Status</th>
-                <th className="text-right p-4 text-padella-cream/50 text-xs font-semibold tracking-wide uppercase">Actions</th>
+                <th className="text-right p-4 text-padella-cream/50 text-xs font-semibold tracking-wide uppercase">Delete</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-padella-cream/5">
@@ -141,9 +141,10 @@ export default function AdminMenuPage() {
                       <button
                         onClick={() => setConfirmDelete(item)}
                         title="Delete dish"
-                        className="w-8 h-8 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center hover:bg-red-500/30 text-red-400 transition-all"
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-semibold transition-all shadow-sm"
                       >
-                        <X size={16} strokeWidth={2.5} />
+                        <X size={15} strokeWidth={3} />
+                        Delete
                       </button>
                     </div>
                   </td>
