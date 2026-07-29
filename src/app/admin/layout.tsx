@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart2, ChefHat, QrCode, MessageSquare, Calendar, Menu, X, LogOut, Camera, Info, Sparkles } from "lucide-react";
+import { BarChart2, ChefHat, QrCode, MessageSquare, Calendar, Menu, X, LogOut, Camera, Info, Sparkles, ListOrdered } from "lucide-react";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
 
@@ -11,6 +11,7 @@ const NAV = [
   { href: "/admin",          label: "Dashboard",       icon: BarChart2,     sub: "Statistics & analytics" },
   { href: "/admin/chat",     label: "Chat AI",         icon: Sparkles,      sub: "Quick management",  gold: true },
   { href: "/admin/menu-ai",  label: "Create Menu",     icon: ChefHat,       sub: "Add dishes AI" },
+  { href: "/admin/menu",     label: "Menu List",       icon: ListOrdered,   sub: "Search, edit, delete" },
   { href: "/admin/daily",    label: "Daily Menu", icon: Calendar,      sub: "Today special" },
   { href: "/admin/photos",   label: "Photo Studio AI", icon: Camera,        sub: "Filter & background" },
   { href: "/admin/info",     label: "Edit Info",   icon: Info,          sub: "Contacts & hours" },

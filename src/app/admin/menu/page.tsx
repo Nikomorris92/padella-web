@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trash2, ToggleLeft, ToggleRight, X } from "lucide-react";
+import { Trash2, ToggleLeft, ToggleRight, X, Search } from "lucide-react";
 import { MENU_CATEGORIES } from "@/lib/menuData";
 import { subscribeMenu, deleteMenuItem, updateMenuItem, RemoteMenuItem } from "@/lib/menuRepo";
 
 export default function AdminMenuPage() {
   const [activeCategory, setActiveCategory] = useState("all");
+  const [search, setSearch] = useState("");
   const [items, setItems] = useState<RemoteMenuItem[]>([]);
   const [confirmDelete, setConfirmDelete] = useState<RemoteMenuItem | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -17,9 +18,9 @@ export default function AdminMenuPage() {
     return () => unsub();
   }, []);
 
-  const filtered = activeCategory === "all"
-    ? items
-    : items.filter(item => item.category === activeCategory);
+  const filtered = items
+    .filter(item => activeCategory === "all" || item.category === activeCategory)
+    .filter(item => !search || item.name.toLowerCase().includes(search.toLowerCase()));
 
   const handleDelete = async () => {
     if (!confirmDelete) return;
@@ -50,6 +51,23 @@ export default function AdminMenuPage() {
             <h1 className="font-display font-bold text-padella-cream text-3xl mb-1">Menu Manager</h1>
             <p className="text-padella-cream/50 text-sm">{items.length} dishes — manage availability and delete items</p>
           </div>
+        </div>
+
+        {/* Search bar */}
+        <div className="relative mb-5 max-w-sm">
+          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-padella-cream/40" />
+          <input
+            type="text"
+            placeholder="Search dishes by name..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-10 pr-10 py-2.5 bg-padella-green-light/60 backdrop-blur-md border border-padella-cream/10 rounded-full text-padella-cream placeholder:text-padella-cream/30 text-sm focus:outline-none focus:border-padella-gold/40 transition-colors"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-4 top-1/2 -translate-y-1/2">
+              <X size={14} className="text-padella-cream/40 hover:text-padella-cream" />
+            </button>
+          )}
         </div>
 
         {/* Category tabs */}
