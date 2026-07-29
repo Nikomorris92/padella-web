@@ -54,11 +54,15 @@ STRICT PRESERVATION RULES (subject is immutable):
 
 BACKGROUND REPLACEMENT:
 - New background: dark perforated metallic surface (matte black with regularly-spaced round holes, speaker grille pattern)
-- Under the subject: ${support} (as a base surface)
 - Lighting match: warm directional studio light from above-right, consistent with the new environment
 - Shadow matching: soft natural shadows cast by the subject on the new surface, consistent with the light direction
 - Reflection matching: subtle reflections on the supporting surface where physically appropriate
 - Color consistency: preserve original subject colors, only adjust ambient tint slightly to blend
+
+SERVING CONTAINER — EXACTLY ONE, NEVER TWO:
+- If the input photo already shows the food/drink resting on or in a plate, bowl, glass, cup, can, bottle, tray, or board: that IS the container. Keep it exactly as is. Do NOT add any additional plate, tray, or board underneath or around it.
+- Only if the input shows the food/drink with NO visible container at all (e.g. floating on a blank/plain surface): place it on ${support}.
+- The final image must contain exactly ONE serving container total — never a plate stacked on a tray, never a container inside another container.
 
 OUTPUT: 3:2 landscape composition, subject centered, sharp focus on subject, background clearly visible on all sides.
 
@@ -68,6 +72,7 @@ NEGATIVE (do NOT do):
 - Do not add any text, logo, watermark, or brand marking
 - Do not add other food items or ingredients
 - Do not "improve" or "beautify" the subject
+- Do not add a second plate, tray, or board if one is already present in the input
 - Do not treat this as creative regeneration — this is technical compositing only`;
 }
 
