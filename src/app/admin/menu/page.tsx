@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trash2, ToggleLeft, ToggleRight, X, Search } from "lucide-react";
+import { ToggleLeft, ToggleRight, X, Search } from "lucide-react";
 import { MENU_CATEGORIES } from "@/lib/menuData";
 import { subscribeMenu, deleteMenuItem, updateMenuItem, RemoteMenuItem } from "@/lib/menuRepo";
 
@@ -130,20 +130,20 @@ export default function AdminMenuPage() {
                     </button>
                   </td>
                   <td className="p-4">
-                    <div className="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-2 justify-end">
                       <button
                         onClick={() => toggleAvailable(item)}
                         title={item.available ? "Hide from menu" : "Show on menu"}
-                        className="w-7 h-7 rounded-full glass flex items-center justify-center hover:bg-padella-gold/20 text-padella-gold transition-all"
+                        className="w-8 h-8 rounded-full glass flex items-center justify-center hover:bg-padella-gold/20 text-padella-gold/70 transition-all"
                       >
-                        {item.available ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                        {item.available ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
                       </button>
                       <button
                         onClick={() => setConfirmDelete(item)}
                         title="Delete dish"
-                        className="w-7 h-7 rounded-full glass flex items-center justify-center hover:bg-red-500/20 text-red-400 transition-all"
+                        className="w-8 h-8 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center hover:bg-red-500/30 text-red-400 transition-all"
                       >
-                        <Trash2 size={12} />
+                        <X size={16} strokeWidth={2.5} />
                       </button>
                     </div>
                   </td>
