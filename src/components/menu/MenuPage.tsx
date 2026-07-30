@@ -12,7 +12,7 @@ import MenuItemModal from "./MenuItemModal";
 import TimeSlotBanner from "./TimeSlotBanner";
 
 export default function MenuPage() {
-  const [activeCategory, setActiveCategory] = useState<MenuCategory | "all">(MENU_CATEGORIES[0].id as MenuCategory);
+  const [activeCategory, setActiveCategory] = useState<MenuCategory | "all">("all");
   const [search, setSearch] = useState("");
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [filters, setFilters] = useState({ vegetarian: false, vegan: false, glutenFree: false, spicy: false });
@@ -164,7 +164,7 @@ export default function MenuPage() {
             return (
               <button
                 key={cat.id}
-                onClick={() => setActiveCategory(cat.id as MenuCategory)}
+                onClick={() => setActiveCategory(isActive ? "all" : (cat.id as MenuCategory))}
                 className={`flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${isActive ? "bg-padella-gold text-padella-green" : "glass border border-padella-cream/10 text-padella-cream/60 hover:border-padella-cream/20"}`}
               >
                 <span className="text-xl leading-none">{cat.emoji}</span> {cat.label}
