@@ -59,10 +59,15 @@ export default function MenuPage() {
     return out;
   }, [allItems]);
 
+  const hasDietaryFilter = Object.values(filters).some(Boolean);
+  // Se nessuna categoria è selezionata e nessun filtro dietary è attivo, mostra solo Daily Special
+  // (non tutti gli 84 piatti in fila). Appena un filtro dietary si attiva, si cerca su tutto il menu.
+  const effectiveCategory = activeCategory === "all" && !hasDietaryFilter ? "daily-special" : activeCategory;
+
   const filtered = useMemo(() => {
     return allItems.filter(item => {
       if (!item.available) return false;
-      if (activeCategory !== "all" && item.category !== activeCategory) return false;
+      if (effectiveCategory !== "all" && item.category !== effectiveCategory) return false;
       if (search && !item.name.toLowerCase().includes(search.toLowerCase()) && !item.description.toLowerCase().includes(search.toLowerCase())) return false;
       if (filters.vegetarian && !item.isVegetarian && !item.isVegan) return false;
       if (filters.vegan && !item.isVegan) return false;
@@ -70,7 +75,7 @@ export default function MenuPage() {
       if (filters.spicy && !item.isSpicy) return false;
       return true;
     }).sort((a, b) => a.order - b.order);
-  }, [activeCategory, search, filters, allItems]);
+  }, [effectiveCategory, search, filters, allItems]);
 
   const featuredForTimeSlot = useMemo(() =>
     allItems.filter(item => timeSlot.featuredCategories.includes(item.category as MenuCategory) && item.available).slice(0, 4),
@@ -140,11 +145,7 @@ export default function MenuPage() {
                 ].map(f => (
                   <button
                     key={f.key}
-                    onClick={() => setFilters(prev => {
-                      const isActive = prev[f.key as keyof typeof prev];
-                      const reset = { vegetarian: false, vegan: false, glutenFree: false, spicy: false };
-                      return isActive ? reset : { ...reset, [f.key]: true };
-                    })}
+                    onClick={() => setFilters(prev => ({ ...prev, [f.key]: !prev[f.key as keyof typeof prev] }))}
                     className={`px-4 py-2 rounded-full text-sm transition-all ${filters[f.key as keyof typeof filters] ? "bg-padella-gold text-padella-green font-semibold" : "glass border border-padella-cream/10 text-padella-cream/60"}`}
                   >
                     {f.label}
