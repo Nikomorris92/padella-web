@@ -12,7 +12,7 @@ import MenuItemModal from "./MenuItemModal";
 import TimeSlotBanner from "./TimeSlotBanner";
 
 export default function MenuPage() {
-  const [activeCategory, setActiveCategory] = useState<MenuCategory | "all">("all");
+  const [activeCategory, setActiveCategory] = useState<MenuCategory | "all">(MENU_CATEGORIES[0].id as MenuCategory);
   const [search, setSearch] = useState("");
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [filters, setFilters] = useState({ vegetarian: false, vegan: false, glutenFree: false, spicy: false });
@@ -157,12 +157,6 @@ export default function MenuPage() {
 
         {/* Category tabs */}
         <div className="flex gap-2 overflow-x-auto pb-3 mb-8 scrollbar-hide">
-          <button
-            onClick={() => setActiveCategory("all")}
-            className={`flex-shrink-0 px-5 py-2.5 rounded-full text-sm font-medium transition-all ${activeCategory === "all" ? "bg-padella-gold text-padella-green" : "glass border border-padella-cream/10 text-padella-cream/60 hover:border-padella-cream/20"}`}
-          >
-            All
-          </button>
           {MENU_CATEGORIES.map(cat => {
             const count = countsByCategory[cat.id] ?? 0;
             const isActive = activeCategory === cat.id;
@@ -171,9 +165,9 @@ export default function MenuPage() {
               <button
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id as MenuCategory)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-5 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${isActive ? "bg-padella-gold text-padella-green" : "glass border border-padella-cream/10 text-padella-cream/60 hover:border-padella-cream/20"}`}
+                className={`flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${isActive ? "bg-padella-gold text-padella-green" : "glass border border-padella-cream/10 text-padella-cream/60 hover:border-padella-cream/20"}`}
               >
-                <span>{cat.emoji}</span> {cat.label}
+                <span className="text-xl leading-none">{cat.emoji}</span> {cat.label}
                 {showCount && count > 0 && (
                   <span className={`ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold tabular-nums ${isActive ? "bg-padella-green/15 text-padella-green" : "bg-padella-gold/20 text-padella-gold"}`}>
                     {count}

@@ -11,6 +11,11 @@ import FloatingCTA from "@/components/FloatingCTA";
 export default function PublicChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAdminRoute = pathname?.startsWith("/admin");
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    setIsAdmin(localStorage.getItem("padella_admin") === "true");
+  }, []);
 
   return (
     <>
@@ -19,10 +24,10 @@ export default function PublicChrome({ children }: { children: React.ReactNode }
       {!isAdminRoute && <Footer />}
       {!isAdminRoute && <FloatingCTA />}
 
-      {/* Pulsante Admin "A" — sempre visibile nelle pagine pubbliche.
+      {/* Pulsante Admin "A" — visibile SOLO a chi ha già effettuato login admin su questo browser.
           Click → /admin (AdminGuard chiede login se non autenticato). */}
       <AnimatePresence>
-        {!isAdminRoute && (
+        {!isAdminRoute && isAdmin && (
           <motion.div
             initial={{ opacity: 0, scale: 0.6, x: 10 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
