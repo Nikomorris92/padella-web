@@ -11,7 +11,14 @@ const CATEGORY_EMOJI: Record<string, string> = {
   "soft-drinks": "🥤",
 };
 
+// Piatti che mostrano il video in loop al posto della foto statica.
+const VIDEO_LOOP_DISHES: Record<string, string> = {
+  "Diavola Burrata": "/videos/pasta-loop.mp4",
+  "Angus Striplion Tagliata": "/videos/pasta-loop.mp4",
+};
+
 export default function MenuItemCard({ item, index, onClick }: { item: MenuItem; index: number; onClick: () => void }) {
+  const videoSrc = VIDEO_LOOP_DISHES[item.name];
   const isStaticImage = !!item.image && (item.image.startsWith("/images/") || item.image.startsWith("https://"));
   const isDataImage = !!item.image && item.image.startsWith("data:");
   const hasImage = isStaticImage || isDataImage;
@@ -28,7 +35,16 @@ export default function MenuItemCard({ item, index, onClick }: { item: MenuItem;
     >
       {/* Image — più alta + object-contain così si vede il piatto intero */}
       <div className="relative h-56 md:h-60 overflow-hidden bg-gradient-to-br from-padella-green-muted to-padella-charcoal">
-        {isStaticImage ? (
+        {videoSrc ? (
+          <video
+            src={videoSrc}
+            autoPlay
+            muted
+            loop
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+          />
+        ) : isStaticImage ? (
           <Image
             src={item.image}
             alt={item.name}
