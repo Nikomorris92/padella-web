@@ -5,7 +5,7 @@ import PublicChrome from "@/components/PublicChrome";
 import SiteConfigProvider from "@/components/SiteConfigProvider";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://padellabangkok.com"),
+  metadataBase: new URL("https://padellabkk.com"),
   title: {
     default: "Padella Bangkok — Italian Restaurant, Padel Club & Pool",
     template: "%s | Padella Bangkok",
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Padella Bangkok — Play. Relax. Eat. Connect.",
     description: "The ultimate Italian lifestyle destination in Bangkok.",
-    url: "https://padellabangkok.com",
+    url: "https://padellabkk.com",
     siteName: "Padella Bangkok",
     images: [{ url: "/og-image.jpg", width: 1200, height: 630 }],
     locale: "en_US",
