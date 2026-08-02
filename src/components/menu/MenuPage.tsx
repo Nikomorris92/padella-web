@@ -63,11 +63,16 @@ export default function MenuPage() {
   // Se nessuna categoria è selezionata e nessun filtro dietary è attivo, mostra solo Daily Special
   // (non tutti gli 84 piatti in fila). Appena un filtro dietary si attiva, si cerca su tutto il menu.
   const effectiveCategory = activeCategory === "all" && !hasDietaryFilter ? "daily-special" : activeCategory;
+  // Piatti "pinnati" nella vista Daily Special: mantengono la loro vera categoria (badge/label corretti)
+  // ma compaiono comunque in questa vista di default, accanto ai piatti Daily Special veri.
+  const PINNED_IN_DAILY_SPECIAL_VIEW = ["Spaghetti Carbonara"];
+  const isDailySpecialDefaultView = effectiveCategory === "daily-special";
 
   const filtered = useMemo(() => {
     return allItems.filter(item => {
       if (!item.available) return false;
-      if (effectiveCategory !== "all" && item.category !== effectiveCategory) return false;
+      const isPinned = isDailySpecialDefaultView && PINNED_IN_DAILY_SPECIAL_VIEW.includes(item.name);
+      if (!isPinned && effectiveCategory !== "all" && item.category !== effectiveCategory) return false;
       if (search && !item.name.toLowerCase().includes(search.toLowerCase()) && !item.description.toLowerCase().includes(search.toLowerCase())) return false;
       if (filters.vegetarian && !item.isVegetarian && !item.isVegan) return false;
       if (filters.vegan && !item.isVegan) return false;
@@ -75,7 +80,7 @@ export default function MenuPage() {
       if (filters.spicy && !item.isSpicy) return false;
       return true;
     }).sort((a, b) => a.order - b.order);
-  }, [effectiveCategory, search, filters, allItems]);
+  }, [effectiveCategory, search, filters, allItems, isDailySpecialDefaultView]);
 
   const featuredForTimeSlot = useMemo(() =>
     allItems.filter(item => timeSlot.featuredCategories.includes(item.category as MenuCategory) && item.available).slice(0, 4),
