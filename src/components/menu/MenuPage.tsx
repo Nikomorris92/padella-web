@@ -182,15 +182,15 @@ export default function MenuPage() {
               <button
                 key={cat.id}
                 onClick={() => setActiveCategory(isActive ? "all" : (cat.id as MenuCategory))}
-                className="flex-shrink-0 flex flex-col items-center gap-1.5 w-28"
+                className="flex-shrink-0 flex flex-col items-center gap-1.5 w-[calc(96px+5cm)]"
               >
-                <div className={`relative w-24 h-24 rounded-2xl overflow-hidden transition-all ${isActive ? "ring-2 ring-padella-gold ring-offset-2 ring-offset-padella-green" : "ring-1 ring-padella-cream/10"}`}>
+                <div className={`relative w-[calc(96px+5cm)] h-[calc(96px+5cm)] rounded-2xl overflow-hidden transition-all ${isActive ? "ring-2 ring-padella-gold ring-offset-2 ring-offset-padella-green" : "ring-1 ring-padella-cream/10"}`}>
                   {photo ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={photo} alt={cat.label} className="absolute inset-0 w-full h-full object-cover" />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center bg-padella-green-light">
-                      <span className="text-3xl">{cat.emoji}</span>
+                      <span className="text-5xl">{cat.emoji}</span>
                     </div>
                   )}
                   <div className={`absolute inset-0 ${isActive ? "bg-padella-gold/10" : "bg-black/25"}`} />
