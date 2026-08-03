@@ -11,39 +11,10 @@ const CATEGORY_EMOJI: Record<string, string> = {
   "soft-drinks": "🥤",
 };
 
-// Piatto che mostra il video in loop puro, senza card/testo/prezzo intorno.
-const VIDEO_LOOP_DISHES: Record<string, string> = {
-  "Diavola Burrata": "/videos/pasta-loop.mp4",
-};
-
 export default function MenuItemCard({ item, index, onClick }: { item: MenuItem; index: number; onClick: () => void }) {
-  const videoSrc = VIDEO_LOOP_DISHES[item.name];
   const isStaticImage = !!item.image && (item.image.startsWith("/images/") || item.image.startsWith("https://"));
   const isDataImage = !!item.image && item.image.startsWith("data:");
   const hasImage = isStaticImage || isDataImage;
-
-  // Video puro: nessuna card, nessun testo, nessun prezzo — solo il video verticale.
-  if (videoSrc) {
-    return (
-      <motion.div
-        layout
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        transition={{ delay: Math.min(index * 0.04, 0.3), duration: 0.4 }}
-        className="rounded-2xl overflow-hidden"
-      >
-        <video
-          src={videoSrc}
-          autoPlay
-          muted
-          loop
-          playsInline
-          className="w-full h-auto block"
-        />
-      </motion.div>
-    );
-  }
 
   return (
     <motion.div

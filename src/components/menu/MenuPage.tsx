@@ -87,6 +87,16 @@ export default function MenuPage() {
     [timeSlot, allItems]
   );
 
+  // Foto dell'ultimo piatto caricato per categoria (adminItems arriva già ordinato dal più recente).
+  const lastImageByCategory = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const it of adminItems) {
+      if (!it.image || out[it.category]) continue;
+      out[it.category] = it.image;
+    }
+    return out;
+  }, [adminItems]);
+
   return (
     <div className="min-h-screen bg-padella-green pt-20">
       {/* Page header */}
@@ -161,24 +171,38 @@ export default function MenuPage() {
           )}
         </AnimatePresence>
 
-        {/* Category tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-3 mb-8 scrollbar-hide">
+        {/* Category tabs — mini card fotografiche scorrevoli */}
+        <div className="flex gap-3 overflow-x-auto pb-3 mb-8 scrollbar-hide">
           {MENU_CATEGORIES.map(cat => {
             const count = countsByCategory[cat.id] ?? 0;
             const isActive = activeCategory === cat.id;
             const showCount = config?.show_category_count === true;
+            const photo = lastImageByCategory[cat.id];
             return (
               <button
                 key={cat.id}
                 onClick={() => setActiveCategory(isActive ? "all" : (cat.id as MenuCategory))}
-                className={`flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${isActive ? "bg-padella-gold text-padella-green" : "glass border border-padella-cream/10 text-padella-cream/60 hover:border-padella-cream/20"}`}
+                className="flex-shrink-0 flex flex-col items-center gap-1.5 w-20"
               >
-                <span className="text-xl leading-none">{cat.emoji}</span> {cat.label}
-                {showCount && count > 0 && (
-                  <span className={`ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold tabular-nums ${isActive ? "bg-padella-green/15 text-padella-green" : "bg-padella-gold/20 text-padella-gold"}`}>
-                    {count}
-                  </span>
-                )}
+                <div className={`relative w-16 h-16 rounded-2xl overflow-hidden transition-all ${isActive ? "ring-2 ring-padella-gold ring-offset-2 ring-offset-padella-green" : "ring-1 ring-padella-cream/10"}`}>
+                  {photo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={photo} alt={cat.label} className="absolute inset-0 w-full h-full object-cover" />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center bg-padella-green-light">
+                      <span className="text-2xl">{cat.emoji}</span>
+                    </div>
+                  )}
+                  <div className={`absolute inset-0 ${isActive ? "bg-padella-gold/10" : "bg-black/25"}`} />
+                  {showCount && count > 0 && (
+                    <span className="absolute top-1 right-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold tabular-nums bg-padella-gold text-padella-green">
+                      {count}
+                    </span>
+                  )}
+                </div>
+                <span className={`text-[11px] font-medium text-center leading-tight whitespace-nowrap ${isActive ? "text-padella-gold" : "text-padella-cream/60"}`}>
+                  {cat.label}
+                </span>
               </button>
             );
           })}
